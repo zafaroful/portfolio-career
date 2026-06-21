@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+enum Proficiency {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  role           UserRole @default(ADMIN)
+  portfolioSlug  String?  @unique @map("portfolio_slug")
+  bio            String?
+  photoUrl       String?  @map("photo_url")
+  isPublic       Boolean  @default(false) @map("is_public")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  skills          Skill[]
+  certifications  Certification[]
+  achievements    Achievement[]
+  projects        Project[]
+  resumes         Resume[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model Skill {
+  id              String      @id @default(cuid())
+  userId          String      @map("user_id")
+  name            String
+  category        String
+  proficiency     Proficiency @default(INTERMEDIATE)
+  yearsExperience Float       @default(0) @map("years_experience")
+  endorsements    Json        @default("[]")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@map("skills")
+}
+
+model Certification {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  title        String
+  issuer       String
+  issueDate    DateTime  @map("issue_date")
+  expiryDate   DateTime? @map("expiry_date")
+  credentialId String?   @map("credential_id")
+  fileUrl      String?   @map("file_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiryDate])
+  @@map("certifications")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  title       String
+  description String?
+  date        DateTime
+  category    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([date])
+  @@map("achievements")
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  title       String
+  description String?
+  techStack   Json      @default("[]") @map("tech_stack")
+  role        String?
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  links       Json      @default("[]")
+  imageUrl    String?   @map("image_url")
+  isPublic    Boolean   @default(true) @map("is_public")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Resume {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  versionName String   @map("version_name")
+  templateId  String   @map("template_id")
+  fileUrl     String?  @map("file_url")
+  generatedAt DateTime @default(now()) @map("generated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("resumes")
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  relatedTable String   @map("related_table")
+  relatedId    String   @map("related_id")
+  fileUrl      String   @map("file_url")
+  fileKey      String   @map("file_key")
+  mimeType     String   @map("mime_type")
+  size         Int
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  @@index([relatedTable, relatedId])
+  @@map("attachments")
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String      @map("user_id")
+  action    AuditAction
+  tableName String      @map("table_name")
+  recordId  String      @map("record_id")
+  metadata  Json        @default("{}")
+  timestamp DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}

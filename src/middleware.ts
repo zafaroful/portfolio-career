@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/auth.config";
+import { protectedRoutes } from "@/lib/nav-config";
 import { NextResponse } from "next/server";
 
 const { auth } = NextAuth(authConfig);
@@ -8,17 +9,7 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
 
-  const protectedPaths = [
-    "/dashboard",
-    "/skills",
-    "/certifications",
-    "/achievements",
-    "/projects",
-    "/resumes",
-    "/settings",
-  ];
-
-  const isProtected = protectedPaths.some(
+  const isProtected = protectedRoutes.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
@@ -44,6 +35,7 @@ export const config = {
     "/projects/:path*",
     "/resumes/:path*",
     "/settings/:path*",
+    "/design-system/:path*",
     "/login",
   ],
 };

@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, requireAdmin, handleApiError } from "@/lib/api";
+import { getFileExtension, getMimeTypeFromExtension } from "@/lib/r2";
 import { readFile } from "fs/promises";
 import path from "path";
+
+function getResumeDownloadMeta(resume: {
+  versionName: string;
+  templateId: string;
+  fileUrl: string;
+}) {
+  const urlExt = getFileExtension(resume.fileUrl.split("?")[0] ?? "");
+  const ext = urlExt ?? (resume.templateId === "uploaded" ? "pdf" : "pdf");
+  const safeName = resume.versionName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return {
+    ext,
+    mimeType: getMimeTypeFromExtension(ext),
+    filename: `${safeName}.${ext}`,
+  };
+}
 
 export async function GET(
   _request: NextRequest,
@@ -18,6 +34,12 @@ export async function GET(
     });
     if (!resume?.fileUrl) return apiError("Not found", 404);
 
+    const { mimeType, filename } = getResumeDownloadMeta({
+      versionName: resume.versionName,
+      templateId: resume.templateId,
+      fileUrl: resume.fileUrl,
+    });
+
     if (resume.fileUrl.startsWith("/api/v1/files/")) {
       const key = decodeURIComponent(
         resume.fileUrl.replace("/api/v1/files/", ""),
@@ -26,8 +48,8 @@ export async function GET(
       const buffer = await readFile(localPath);
       return new NextResponse(buffer, {
         headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${resume.versionName}.pdf"`,
+          "Content-Type": mimeType,
+          "Content-Disposition": `attachment; filename="${filename}"`,
         },
       });
     }

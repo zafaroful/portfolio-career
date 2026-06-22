@@ -4,14 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -21,10 +14,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useState } from "react";
+import {
+  DataTable,
+  FormField,
+  PageContainer,
+  PageHeader,
+} from "@/components/common";
+import {
+  cn,
+  formatDate,
+  getFileExtension,
+  getVersionNameFromFilename,
+  isAllowedResumeFile,
+} from "@/lib/utils";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { Download, FileText, Upload } from "lucide-react";
 
 type Resume = {
   id: string;
@@ -34,23 +39,62 @@ type Resume = {
   generatedAt: string;
 };
 
+function getTemplateLabel(templateId: string) {
+  if (templateId === "uploaded") return "Uploaded";
+  if (templateId === "modern") return "Modern";
+  if (templateId === "classic") return "Classic";
+  return templateId;
+}
+
+function getDownloadLabel(resume: Resume) {
+  if (!resume.fileUrl) return "File";
+  const ext = getFileExtension(resume.fileUrl.split("?")[0] ?? "");
+  return ext?.toUpperCase() ?? "PDF";
+}
+
 export default function ResumesPage() {
   const queryClient = useQueryClient();
-  const [versionName, setVersionName] = useState("");
-  const [templateId, setTemplateId] = useState<"modern" | "classic">("modern");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadVersionName, setUploadVersionName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["resumes"],
     queryFn: () => api.get<Resume[]>("/resumes"),
   });
 
-  const generateMutation = useMutation({
-    mutationFn: () =>
-      api.post<Resume>("/resumes/generate", { versionName, templateId }),
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+
+    if (file && !isAllowedResumeFile(file)) {
+      toast.error("Please choose a PDF, DOC, or DOCX file");
+      setSelectedFile(null);
+      event.target.value = "";
+      return;
+    }
+
+    if (file && !uploadVersionName.trim()) {
+      setUploadVersionName(getVersionNameFromFilename(file.name));
+    }
+  }
+
+  const uploadMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedFile) throw new Error("No file selected");
+      const resolvedName =
+        uploadVersionName.trim() || getVersionNameFromFilename(selectedFile.name);
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("versionName", resolvedName);
+      return api.uploadResume<Resume>(formData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resumes"] });
-      toast.success("Resume generated");
-      setVersionName("");
+      toast.success("Resume uploaded");
+      setUploadVersionName("");
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -58,63 +102,75 @@ export default function ResumesPage() {
   const resumes = data?.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Resumes</h1>
-        <p className="text-muted-foreground">Generate and download PDF resumes from your data.</p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Resumes"
+        description="Upload and manage your resume files."
+      />
 
-      <Card>
+      <Card className="max-w-xl shadow-elevation-sm">
         <CardHeader>
-          <CardTitle className="text-base">Generate resume</CardTitle>
+          <CardTitle className="text-base">Upload resume</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Version name</Label>
-              <Input
-                value={versionName}
-                onChange={(e) => setVersionName(e.target.value)}
-                placeholder="e.g. Software Engineer 2026"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Template</Label>
-              <Select value={templateId} onValueChange={(v) => setTemplateId(v as "modern" | "classic")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="modern">Modern</SelectItem>
-                  <SelectItem value="classic">Classic</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <Button
-            onClick={() => generateMutation.mutate()}
-            disabled={!versionName || generateMutation.isPending}
+          <FormField
+            label="Version name"
+            description="Optional — defaults to the file name if left empty."
           >
-            <FileText className="mr-2 h-4 w-4" />
-            {generateMutation.isPending ? "Generating..." : "Generate PDF"}
+            <Input
+              value={uploadVersionName}
+              onChange={(e) => setUploadVersionName(e.target.value)}
+              placeholder="e.g. Senior Developer CV"
+            />
+          </FormField>
+          <FormField
+            label="Resume file"
+            description="PDF, DOC, or DOCX up to 10 MB."
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={handleFileSelect}
+              className={cn(
+                "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none",
+                "file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1 file:text-sm file:font-medium file:text-foreground",
+                "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30",
+              )}
+            />
+            {selectedFile ? (
+              <p className="text-caption">Selected: {selectedFile.name}</p>
+            ) : null}
+          </FormField>
+          <Button
+            onClick={() => uploadMutation.mutate()}
+            disabled={!selectedFile || uploadMutation.isPending}
+          >
+            <Upload className="mr-2 size-4" />
+            {uploadMutation.isPending ? "Uploading..." : "Upload file"}
           </Button>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="shadow-elevation-sm">
         <CardHeader>
           <CardTitle className="text-base">Version history</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <p>Loading...</p>
-          ) : (
+          <DataTable
+            isLoading={isLoading}
+            isEmpty={!isLoading && resumes.length === 0}
+            emptyIcon={FileText}
+            emptyTitle="No resumes yet"
+            emptyDescription="Upload a resume file to get started."
+            className="border-0 shadow-none"
+          >
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Version</TableHead>
-                  <TableHead>Template</TableHead>
-                  <TableHead>Generated</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Added</TableHead>
                   <TableHead>Download</TableHead>
                 </TableRow>
               </TableHeader>
@@ -122,24 +178,28 @@ export default function ResumesPage() {
                 {resumes.map((resume) => (
                   <TableRow key={resume.id}>
                     <TableCell>{resume.versionName}</TableCell>
-                    <TableCell>{resume.templateId}</TableCell>
-                    <TableCell>{format(new Date(resume.generatedAt), "PP p")}</TableCell>
+                    <TableCell>
+                      <Badge variant={resume.templateId === "uploaded" ? "secondary" : "default"}>
+                        {getTemplateLabel(resume.templateId)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatDate(resume.generatedAt, "PP p")}</TableCell>
                     <TableCell>
                       <a
                         href={`/api/v1/resumes/${resume.id}/download`}
                         className="inline-flex items-center gap-1 text-primary underline"
                       >
-                        <Download className="h-4 w-4" />
-                        PDF
+                        <Download className="size-4" />
+                        {getDownloadLabel(resume)}
                       </a>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
+          </DataTable>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

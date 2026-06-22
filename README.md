@@ -6,7 +6,7 @@ Personal Portfolio & Career Management System — a Next.js full-stack app to ma
 
 - **Frontend:** Next.js 16 (App Router), React 19, Tailwind CSS, shadcn/ui
 - **Backend:** Next.js API routes (`/api/v1/*`)
-- **Database:** PostgreSQL + Prisma
+- **Database:** PostgreSQL + Prisma (local Docker, Supabase, or `prisma dev`)
 - **Auth:** Auth.js (NextAuth v5) with credentials + JWT
 - **Files:** Cloudflare R2 (S3-compatible) with local `uploads/` fallback
 - **PDF:** `@react-pdf/renderer`
@@ -18,6 +18,7 @@ Personal Portfolio & Career Management System — a Next.js full-stack app to ma
 - Node.js 20+
 - **Option A:** Docker Desktop (local PostgreSQL via `docker compose`)
 - **Option B:** No Docker — use `npx prisma dev` (built-in local Postgres)
+- **Option C:** [Supabase](https://supabase.com) hosted PostgreSQL (recommended for production)
 
 ### 1. Install dependencies
 
@@ -46,6 +47,23 @@ Copy the **TCP** connection string (e.g. `postgres://postgres:postgres@localhost
 
 To stop later: `npx prisma dev stop portfolio-career`
 
+**Option C — Supabase** (hosted PostgreSQL):
+
+1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
+2. Open **Project Settings → Database → Connect**.
+3. Copy the **Transaction pooler** URI (port `6543`) into `.env` as `DATABASE_URL`. Append `?pgbouncer=true` if it is not already present.
+4. Copy the **Session pooler** URI (port `5432`) or **Direct connection** URI into `.env` as `DIRECT_URL`.
+5. Replace `[YOUR-PASSWORD]` with your database password (or create a dedicated `prisma` user in the Supabase SQL editor).
+
+Example `.env` values:
+
+```env
+DATABASE_URL="postgresql://postgres.abcdefgh:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.abcdefgh:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+```
+
+The app uses `DATABASE_URL` (pooled) at runtime. Prisma CLI commands (`db:migrate`, `db:deploy`, `db:seed`) use `DIRECT_URL` via `prisma.config.ts`.
+
 ### 3. Configure environment
 
 Copy `.env.example` to `.env` and adjust values:
@@ -63,8 +81,8 @@ npm run db:seed
 
 Default admin credentials (from `.env`):
 
-- Email: `admin@example.com`
-- Password: `changeme123`
+- Email: `zafaroful98@gmail.com`
+- Password: `Zarul@Iwan1998`
 - Portfolio slug: `admin`
 
 ### 5. Start dev server
@@ -130,7 +148,23 @@ All authenticated endpoints require an admin session.
 3. Build command: `npm run build` (runs `prisma generate` via `postinstall`).
 4. Run `npm run db:deploy` against production DB before first deploy (or use Railway migration step).
 
-### Railway (PostgreSQL)
+### Supabase (database)
+
+1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
+2. In **Project Settings → Database → Connect**, copy:
+   - **Transaction pooler** (port `6543`) → `DATABASE_URL` (add `?pgbouncer=true`)
+   - **Session pooler** or **Direct connection** (port `5432`) → `DIRECT_URL`
+3. Add both variables to Vercel (or your host) alongside the other env vars from `.env.example`.
+4. Before the first deploy, run migrations against Supabase:
+
+```bash
+npm run db:deploy
+npm run db:seed
+```
+
+Supabase includes automated daily backups on paid plans; free tier projects can use manual backups via the dashboard or `pg_dump`.
+
+### Railway (PostgreSQL, alternative)
 
 1. Create a PostgreSQL service on Railway.
 2. Copy `DATABASE_URL` and set as `DIRECT_URL` as well (or use pooled URL + direct URL per Prisma docs).
@@ -145,7 +179,7 @@ All authenticated endpoints require an admin session.
 
 ### Staging
 
-- Use Vercel preview deployments + a separate Railway Postgres instance.
+- Use Vercel preview deployments + a separate Supabase project (or Railway Postgres) for staging.
 - Set preview env vars in Vercel for staging DB and R2 bucket.
 
 ## Security notes
@@ -161,6 +195,7 @@ All authenticated endpoints require an admin session.
 
 ## Backups
 
+- **Supabase:** automated backups on Pro plan; export via dashboard or `pg_dump` on free tier.
 - Railway: enable automated Postgres backups in the Railway dashboard.
 - For VPS/self-hosted: schedule `pg_dump` daily and store off-site.
 

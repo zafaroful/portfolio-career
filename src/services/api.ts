@@ -40,4 +40,6 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
   upload: <T>(formData: FormData) =>
     request<T>("/upload", { method: "POST", body: formData }),
+  uploadResume: <T>(formData: FormData) =>
+    request<T>("/resumes/upload", { method: "POST", body: formData }),
 };

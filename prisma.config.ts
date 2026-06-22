@@ -8,7 +8,8 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
   },
+  // Prisma CLI (migrate, studio) needs a direct connection — use DIRECT_URL for Supabase.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

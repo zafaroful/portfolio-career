@@ -36,7 +36,24 @@ export const ALLOWED_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
+export const RESUME_MIME_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
+
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
 
 export function validateFile(file: { type: string; size: number }) {
   if (!ALLOWED_MIME_TYPES.includes(file.type as typeof ALLOWED_MIME_TYPES[number])) {
@@ -45,6 +62,45 @@ export function validateFile(file: { type: string; size: number }) {
   if (file.size > MAX_FILE_SIZE) {
     throw new Error("File exceeds maximum size of 10MB");
   }
+}
+
+export function validateResumeFile(file: {
+  type: string;
+  size: number;
+  name?: string;
+}) {
+  const ext = file.name ? getFileExtension(file.name) : null;
+  const allowedByExt = ext === "pdf" || ext === "doc" || ext === "docx";
+  const allowedByMime = RESUME_MIME_TYPES.includes(
+    file.type as (typeof RESUME_MIME_TYPES)[number],
+  );
+
+  if (!allowedByMime && !allowedByExt) {
+    throw new Error("Resume must be a PDF, DOC, or DOCX file");
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("File exceeds maximum size of 10MB");
+  }
+}
+
+export function resolveResumeMimeType(filename: string, type: string): string {
+  if (type && RESUME_MIME_TYPES.includes(type as (typeof RESUME_MIME_TYPES)[number])) {
+    return type;
+  }
+  const ext = getFileExtension(filename);
+  if (ext && EXTENSION_MIME_TYPES[ext]) {
+    return EXTENSION_MIME_TYPES[ext];
+  }
+  return type || "application/octet-stream";
+}
+
+export function getFileExtension(filename: string): string | null {
+  const match = filename.match(/\.([a-z0-9]+)$/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+export function getMimeTypeFromExtension(ext: string): string {
+  return EXTENSION_MIME_TYPES[ext] ?? "application/octet-stream";
 }
 
 export async function uploadFile(

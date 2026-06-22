@@ -19,7 +19,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -27,10 +26,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+import {
+  DataTable,
+  FormField,
+  PageContainer,
+  PageHeader,
+  TableActions,
+} from "@/components/common";
+import { SkillBadge } from "@/components/features/skills/skill-badge";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 
 type Skill = {
   id: string;
@@ -123,90 +129,98 @@ export default function SkillsPage() {
   const skills = data?.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Skills</h1>
-          <p className="text-muted-foreground">Manage your skills and proficiency levels.</p>
-        </div>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) {
-              setEditing(null);
-              resetForm();
-            }
-          }}
-        >
-          <DialogTrigger
-            render={
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add skill
-              </Button>
-            }
-          />
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Edit skill" : "Add skill"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Input
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Proficiency</Label>
-                <Select
-                  value={form.proficiency}
-                  onValueChange={(v) => v && setForm({ ...form, proficiency: v })}
+    <PageContainer>
+      <PageHeader
+        title="Skills"
+        description="Manage your skills and proficiency levels."
+        actions={
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) {
+                setEditing(null);
+                resetForm();
+              }
+            }}
+          >
+            <DialogTrigger
+              render={
+                <Button>
+                  <Plus className="mr-2 size-4" />
+                  Add skill
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editing ? "Edit skill" : "Add skill"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <FormField label="Name">
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Category">
+                  <Input
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Proficiency">
+                  <Select
+                    value={form.proficiency}
+                    onValueChange={(v) => v && setForm({ ...form, proficiency: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {proficiencies.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="Years of experience">
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={form.yearsExperience}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        yearsExperience: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </FormField>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {proficiencies.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Years of experience</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  value={form.yearsExperience}
-                  onChange={(e) =>
-                    setForm({ ...form, yearsExperience: parseFloat(e.target.value) || 0 })
-                  }
-                />
-              </div>
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                {editing ? "Update" : "Create"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+                  {editing ? "Update" : "Create"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      {isLoading ? (
-        <p>Loading...</p>
-      ) : (
+      <DataTable
+        isLoading={isLoading}
+        isEmpty={!isLoading && skills.length === 0}
+        emptyIcon={Sparkles}
+        emptyTitle="No skills yet"
+        emptyDescription="Add your first skill to build your portfolio profile."
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -223,26 +237,21 @@ export default function SkillsPage() {
                 <TableCell>{skill.name}</TableCell>
                 <TableCell>{skill.category}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{skill.proficiency}</Badge>
+                  <SkillBadge proficiency={skill.proficiency} showLevel />
                 </TableCell>
                 <TableCell>{skill.yearsExperience}</TableCell>
-                <TableCell className="flex gap-1">
-                  <Button size="icon" variant="ghost" onClick={() => openEdit(skill)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => deleteMutation.mutate(skill.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <TableCell>
+                  <TableActions
+                    onEdit={() => openEdit(skill)}
+                    onDelete={() => deleteMutation.mutate(skill.id)}
+                    isDeleting={deleteMutation.isPending}
+                  />
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      )}
-    </div>
+      </DataTable>
+    </PageContainer>
   );
 }

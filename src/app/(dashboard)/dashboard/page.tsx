@@ -6,9 +6,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import {
+  LoadingState,
+  PageContainer,
+  PageHeader,
+  StatCard,
+} from "@/components/common";
+import { formatDate } from "@/lib/utils";
 import { useState } from "react";
-import { format } from "date-fns";
-import { AlertTriangle, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  Award,
+  BadgeCheck,
+  FileText,
+  FolderKanban,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -76,21 +90,18 @@ export default function DashboardPage() {
     : [];
 
   const expiredCerts = stats?.expiringCerts.filter((c) => c.expiryStatus === "expired") ?? [];
-  const expiringSoon = stats?.expiringCerts.filter((c) =>
-    ["30", "60", "90"].includes(c.expiryStatus),
-  ) ?? [];
+  const expiringSoon =
+    stats?.expiringCerts.filter((c) => ["30", "60", "90"].includes(c.expiryStatus)) ?? [];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your career portfolio and alerts.
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Dashboard"
+        description="Overview of your career portfolio and alerts."
+      />
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search skills, certs, projects..."
           className="pl-9"
@@ -100,13 +111,15 @@ export default function DashboardPage() {
       </div>
 
       {searchQuery.length >= 2 && searchData?.data && (
-        <Card>
+        <Card className="shadow-elevation-sm">
           <CardHeader>
             <CardTitle className="text-base">Search results</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {searchData.data.skills.map((s) => (
-              <div key={s.id}>Skill: {s.name} ({s.category})</div>
+              <div key={s.id}>
+                Skill: {s.name} ({s.category})
+              </div>
             ))}
             {searchData.data.certifications.map((c) => (
               <div key={c.id}>Cert: {c.title}</div>
@@ -122,25 +135,30 @@ export default function DashboardPage() {
       )}
 
       {isLoading ? (
-        <p className="text-muted-foreground">Loading...</p>
+        <LoadingState variant="cards" />
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {chartData.map((item) => (
-              <Card key={item.name}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {item.name}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{item.count}</p>
-                </CardContent>
-              </Card>
-            ))}
+            <StatCard label="Skills" value={stats?.counts.skills ?? 0} icon={Sparkles} />
+            <StatCard
+              label="Certifications"
+              value={stats?.counts.certifications ?? 0}
+              icon={BadgeCheck}
+            />
+            <StatCard
+              label="Achievements"
+              value={stats?.counts.achievements ?? 0}
+              icon={Award}
+            />
+            <StatCard
+              label="Projects"
+              value={stats?.counts.projects ?? 0}
+              icon={FolderKanban}
+            />
+            <StatCard label="Resumes" value={stats?.counts.resumes ?? 0} icon={FileText} />
           </div>
 
-          <Card>
+          <Card className="shadow-elevation-sm">
             <CardHeader>
               <CardTitle className="text-base">Portfolio overview</CardTitle>
             </CardHeader>
@@ -151,7 +169,7 @@ export default function DashboardPage() {
                   <XAxis dataKey="name" />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -159,7 +177,7 @@ export default function DashboardPage() {
 
           {(expiredCerts.length > 0 || expiringSoon.length > 0) && (
             <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="size-4" />
               <AlertTitle>Certification alerts</AlertTitle>
               <AlertDescription className="space-y-1">
                 {expiredCerts.map((c) => (
@@ -170,15 +188,14 @@ export default function DashboardPage() {
                 {expiringSoon.map((c) => (
                   <div key={c.id}>
                     <Badge variant="outline">Expiring in {c.expiryStatus} days</Badge>{" "}
-                    {c.title} — expires{" "}
-                    {c.expiryDate ? format(new Date(c.expiryDate), "PP") : "N/A"}
+                    {c.title} — expires {formatDate(c.expiryDate)}
                   </div>
                 ))}
               </AlertDescription>
             </Alert>
           )}
 
-          <Card>
+          <Card className="shadow-elevation-sm">
             <CardHeader>
               <CardTitle className="text-base">Recent activity</CardTitle>
             </CardHeader>
@@ -192,7 +209,7 @@ export default function DashboardPage() {
                     {log.action} on {log.tableName}
                   </span>
                   <span className="text-muted-foreground">
-                    {format(new Date(log.timestamp), "PP p")}
+                    {formatDate(log.timestamp, "PP p")}
                   </span>
                 </div>
               ))}
@@ -200,6 +217,6 @@ export default function DashboardPage() {
           </Card>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

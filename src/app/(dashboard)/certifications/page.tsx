@@ -19,12 +19,19 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  DataTable,
+  FormField,
+  PageContainer,
+  PageHeader,
+  TableActions,
+} from "@/components/common";
+import { getExpiryStatus } from "@/components/features/certifications/expiry-status";
+import { formatDate } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { BadgeCheck, Plus } from "lucide-react";
 
 type Certification = {
   id: string;
@@ -35,17 +42,6 @@ type Certification = {
   credentialId: string | null;
   fileUrl: string | null;
 };
-
-function getExpiryStatus(expiryDate: string | null) {
-  if (!expiryDate) return { label: "No expiry", variant: "secondary" as const };
-  const now = new Date();
-  const expiry = new Date(expiryDate);
-  if (expiry < now) return { label: "Expired", variant: "destructive" as const };
-  const days = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-  if (days <= 30) return { label: "Expiring soon", variant: "destructive" as const };
-  if (days <= 90) return { label: "Expiring", variant: "outline" as const };
-  return { label: "Valid", variant: "default" as const };
-}
 
 export default function CertificationsPage() {
   const queryClient = useQueryClient();
@@ -162,71 +158,93 @@ export default function CertificationsPage() {
   const certs = data?.data ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Certifications</h1>
-          <p className="text-muted-foreground">Track credentials and expiry dates.</p>
-        </div>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) {
-              setEditing(null);
-              resetForm();
-            }
-          }}
-        >
-          <DialogTrigger
-            render={
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add certification
-              </Button>
-            }
-          />
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Edit certification" : "Add certification"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Issuer</Label>
-                <Input value={form.issuer} onChange={(e) => setForm({ ...form, issuer: e.target.value })} required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Issue date</Label>
-                  <Input type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} required />
+    <PageContainer>
+      <PageHeader
+        title="Certifications"
+        description="Track credentials and expiry dates."
+        actions={
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) {
+                setEditing(null);
+                resetForm();
+              }
+            }}
+          >
+            <DialogTrigger
+              render={
+                <Button>
+                  <Plus className="mr-2 size-4" />
+                  Add certification
+                </Button>
+              }
+            />
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {editing ? "Edit certification" : "Add certification"}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <FormField label="Title">
+                  <Input
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Issuer">
+                  <Input
+                    value={form.issuer}
+                    onChange={(e) => setForm({ ...form, issuer: e.target.value })}
+                    required
+                  />
+                </FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Issue date">
+                    <Input
+                      type="date"
+                      value={form.issueDate}
+                      onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Expiry date">
+                    <Input
+                      type="date"
+                      value={form.expiryDate}
+                      onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+                    />
+                  </FormField>
                 </div>
-                <div className="space-y-2">
-                  <Label>Expiry date</Label>
-                  <Input type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Credential ID</Label>
-                <Input value={form.credentialId} onChange={(e) => setForm({ ...form, credentialId: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Certificate file</Label>
-                <Input type="file" onChange={handleFileUpload} accept=".pdf,.png,.jpg,.jpeg" />
-                {form.fileUrl && <p className="text-xs text-muted-foreground">Uploaded</p>}
-              </div>
-              <Button type="submit">{editing ? "Update" : "Create"}</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+                <FormField label="Credential ID">
+                  <Input
+                    value={form.credentialId}
+                    onChange={(e) => setForm({ ...form, credentialId: e.target.value })}
+                  />
+                </FormField>
+                <FormField
+                  label="Certificate file"
+                  description={form.fileUrl ? "File uploaded successfully." : undefined}
+                >
+                  <Input type="file" onChange={handleFileUpload} accept=".pdf,.png,.jpg,.jpeg" />
+                </FormField>
+                <Button type="submit">{editing ? "Update" : "Create"}</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
-      {isLoading ? (
-        <p>Loading...</p>
-      ) : (
+      <DataTable
+        isLoading={isLoading}
+        isEmpty={!isLoading && certs.length === 0}
+        emptyIcon={BadgeCheck}
+        emptyTitle="No certifications yet"
+        emptyDescription="Add credentials to track expiry dates and showcase expertise."
+      >
         <Table>
           <TableHeader>
             <TableRow>
@@ -246,36 +264,38 @@ export default function CertificationsPage() {
                 <TableRow key={cert.id}>
                   <TableCell>{cert.title}</TableCell>
                   <TableCell>{cert.issuer}</TableCell>
-                  <TableCell>{format(new Date(cert.issueDate), "PP")}</TableCell>
-                  <TableCell>
-                    {cert.expiryDate ? format(new Date(cert.expiryDate), "PP") : "—"}
-                  </TableCell>
+                  <TableCell>{formatDate(cert.issueDate)}</TableCell>
+                  <TableCell>{formatDate(cert.expiryDate)}</TableCell>
                   <TableCell>
                     <Badge variant={status.variant}>{status.label}</Badge>
                   </TableCell>
                   <TableCell>
                     {cert.fileUrl ? (
-                      <a href={cert.fileUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+                      <a
+                        href={cert.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary underline"
+                      >
                         View
                       </a>
                     ) : (
                       "—"
                     )}
                   </TableCell>
-                  <TableCell className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(cert)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(cert.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <TableCell>
+                    <TableActions
+                      onEdit={() => openEdit(cert)}
+                      onDelete={() => deleteMutation.mutate(cert.id)}
+                      isDeleting={deleteMutation.isPending}
+                    />
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
-      )}
-    </div>
+      </DataTable>
+    </PageContainer>
   );
 }

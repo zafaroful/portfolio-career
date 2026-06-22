@@ -11,14 +11,21 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  EmptyState,
+  FormField,
+  LoadingState,
+  PageContainer,
+  PageHeader,
+  TableActions,
+  Timeline,
+} from "@/components/common";
+import { formatDate } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { Award, Plus } from "lucide-react";
 
 type Achievement = {
   id: string;
@@ -113,109 +120,132 @@ export default function AchievementsPage() {
   }
 
   const achievements = data?.data ?? [];
+  const timelineItems = achievements.map((a) => ({
+    id: a.id,
+    title: a.title,
+    subtitle: a.description ?? undefined,
+    date: formatDate(a.date),
+    badge: a.category ?? undefined,
+  }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Achievements</h1>
-          <p className="text-muted-foreground">Awards and milestones timeline.</p>
-        </div>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) {
-              setEditing(null);
-              resetForm();
-            }
-          }}
-        >
-          <DialogTrigger
-            render={
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add achievement
-              </Button>
-            }
-          />
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editing ? "Edit achievement" : "Add achievement"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date</Label>
-                  <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+    <PageContainer>
+      <PageHeader
+        title="Achievements"
+        description="Awards and milestones timeline."
+        actions={
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) {
+                setEditing(null);
+                resetForm();
+              }
+            }}
+          >
+            <DialogTrigger
+              render={
+                <Button>
+                  <Plus className="mr-2 size-4" />
+                  Add achievement
+                </Button>
+              }
+            />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editing ? "Edit achievement" : "Add achievement"}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <FormField label="Title">
+                  <Input
+                    value={form.title}
+                    onChange={(e) => setForm({ ...form, title: e.target.value })}
+                    required
+                  />
+                </FormField>
+                <FormField label="Description">
+                  <Textarea
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  />
+                </FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Date">
+                    <Input
+                      type="date"
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Category">
+                    <Input
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    />
+                  </FormField>
                 </div>
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-                </div>
-              </div>
-              <Button type="submit">{editing ? "Update" : "Create"}</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+                <Button type="submit">{editing ? "Update" : "Create"}</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
       {isLoading ? (
-        <p>Loading...</p>
+        <LoadingState variant="page" />
+      ) : achievements.length === 0 ? (
+        <EmptyState
+          icon={Award}
+          title="No achievements yet"
+          description="Record awards, promotions, and milestones on your career timeline."
+        />
       ) : (
         <Tabs defaultValue="timeline">
           <TabsList>
             <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="list">List</TabsTrigger>
           </TabsList>
-          <TabsContent value="timeline" className="space-y-4">
-            {achievements.map((a) => (
-              <Card key={a.id}>
-                <CardHeader className="flex flex-row items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base">{a.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(a.date), "PP")}
-                      {a.category && ` · ${a.category}`}
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button size="icon" variant="ghost" onClick={() => openEdit(a)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" onClick={() => deleteMutation.mutate(a.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
-                {a.description && (
-                  <CardContent>
-                    <p className="text-sm">{a.description}</p>
-                  </CardContent>
-                )}
-              </Card>
-            ))}
-          </TabsContent>
-          <TabsContent value="list">
-            <ul className="space-y-2">
+          <TabsContent value="timeline" className="mt-4 rounded-lg border bg-card p-6 shadow-elevation-sm">
+            <Timeline items={timelineItems} />
+            <div className="mt-6 space-y-2 border-t pt-4">
               {achievements.map((a) => (
-                <li key={a.id} className="flex justify-between border-b py-2 text-sm">
+                <div key={a.id} className="flex items-center justify-between gap-4">
+                  <span className="text-sm font-medium">{a.title}</span>
+                  <TableActions
+                    onEdit={() => openEdit(a)}
+                    onDelete={() => deleteMutation.mutate(a.id)}
+                    isDeleting={deleteMutation.isPending}
+                  />
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+          <TabsContent value="list" className="mt-4">
+            <ul className="divide-y rounded-lg border shadow-elevation-sm">
+              {achievements.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
+                >
                   <span>{a.title}</span>
-                  <span className="text-muted-foreground">{format(new Date(a.date), "PP")}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground">{formatDate(a.date)}</span>
+                    <TableActions
+                      onEdit={() => openEdit(a)}
+                      onDelete={() => deleteMutation.mutate(a.id)}
+                      isDeleting={deleteMutation.isPending}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>
           </TabsContent>
         </Tabs>
       )}
-    </div>
+    </PageContainer>
   );
 }

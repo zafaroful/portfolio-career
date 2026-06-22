@@ -32,6 +32,7 @@ model User {
   passwordHash   String   @map("password_hash")
   role           UserRole @default(ADMIN)
   portfolioSlug  String?  @unique @map("portfolio_slug")
+  linkedinUrl    String?  @map("linkedin_url")
   bio            String?
   photoUrl       String?  @map("photo_url")
   isPublic       Boolean  @default(false) @map("is_public")

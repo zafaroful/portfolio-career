@@ -58,16 +58,15 @@ export const resumeGenerateSchema = z.object({
   templateId: z.enum(["modern", "classic"]),
 });
 
+export const resumeUploadSchema = z.object({
+  versionName: z.string().min(1).max(100),
+});
+
 export const settingsUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   bio: z.string().max(2000).optional().nullable(),
   photoUrl: z.string().optional().nullable(),
-  portfolioSlug: z
-    .string()
-    .min(3)
-    .max(50)
-    .regex(/^[a-z0-9-]+$/)
-    .optional(),
+  linkedinUrl: z.string().url().max(500).optional().nullable(),
   isPublic: z.boolean().optional(),
 });
 

@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { format } from "date-fns";
+import { SkillBadge } from "@/components/features/skills/skill-badge";
+import { formatDate } from "@/lib/utils";
 import type {
   Skill,
   Certification,
@@ -61,15 +62,17 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
             <h2 id="skills-heading" className="mb-4 text-xl font-semibold">Skills</h2>
             <div className="space-y-4">
               {Object.entries(skillsByCategory).map(([category, skills]) => (
-                <Card key={category}>
+                <Card key={category} className="shadow-elevation-sm">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{category}</CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-wrap gap-2">
                     {skills.map((skill) => (
-                      <Badge key={skill.id} variant="secondary">
-                        {skill.name} · {skill.proficiency}
-                      </Badge>
+                      <SkillBadge
+                        key={skill.id}
+                        name={skill.name}
+                        proficiency={skill.proficiency}
+                      />
                     ))}
                   </CardContent>
                 </Card>
@@ -83,7 +86,7 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
             <h2 id="projects-heading" className="mb-4 text-xl font-semibold">Projects</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {portfolio.projects.map((project) => (
-                <Card key={project.id}>
+                <Card key={project.id} className="shadow-elevation-sm">
                   <CardHeader>
                     <CardTitle className="text-base">{project.title}</CardTitle>
                     {project.role && (
@@ -130,14 +133,14 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
             <h2 id="certs-heading" className="mb-4 text-xl font-semibold">Certifications</h2>
             <div className="space-y-3">
               {portfolio.certifications.map((cert) => (
-                <Card key={cert.id}>
+                <Card key={cert.id} className="shadow-elevation-sm">
                   <CardContent className="flex justify-between gap-4 py-4">
                     <div>
                       <p className="font-medium">{cert.title}</p>
                       <p className="text-sm text-muted-foreground">{cert.issuer}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(cert.issueDate), "PP")}
+                      {formatDate(cert.issueDate)}
                     </p>
                   </CardContent>
                 </Card>
@@ -151,12 +154,12 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
             <h2 id="achievements-heading" className="mb-4 text-xl font-semibold">Achievements</h2>
             <div className="space-y-3">
               {portfolio.achievements.map((achievement) => (
-                <Card key={achievement.id}>
+                <Card key={achievement.id} className="shadow-elevation-sm">
                   <CardContent className="py-4">
                     <div className="flex justify-between gap-4">
                       <p className="font-medium">{achievement.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(achievement.date), "PP")}
+                        {formatDate(achievement.date)}
                       </p>
                     </div>
                     {achievement.description && (

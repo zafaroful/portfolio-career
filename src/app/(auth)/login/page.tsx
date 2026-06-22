@@ -5,7 +5,6 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -13,6 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FormField } from "@/components/common/form-field";
+import { LoadingState } from "@/components/common/loading-state";
+import { AuthLayout } from "@/components/layout/auth-layout";
 import { toast } from "sonner";
 
 function LoginForm() {
@@ -21,17 +23,17 @@ function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setIsLoading(true);
     const result = await signIn("credentials", {
       email,
       password,
       redirect: false,
     });
-    setLoading(false);
+    setIsLoading(false);
 
     if (result?.error) {
       toast.error("Invalid email or password");
@@ -43,7 +45,7 @@ function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md shadow-elevation-md">
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
         <CardDescription>
@@ -52,8 +54,7 @@ function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+          <FormField label="Email" htmlFor="email">
             <Input
               id="email"
               type="email"
@@ -62,9 +63,8 @@ function LoginForm() {
               required
               autoComplete="email"
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+          </FormField>
+          <FormField label="Password" htmlFor="password">
             <Input
               id="password"
               type="password"
@@ -73,9 +73,9 @@ function LoginForm() {
               required
               autoComplete="current-password"
             />
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          </FormField>
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
       </CardContent>
@@ -85,10 +85,10 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
-      <Suspense fallback={<div>Loading...</div>}>
+    <AuthLayout>
+      <Suspense fallback={<LoadingState variant="form" />}>
         <LoginForm />
       </Suspense>
-    </div>
+    </AuthLayout>
   );
 }

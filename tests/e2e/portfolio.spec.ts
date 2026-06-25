@@ -16,7 +16,7 @@ test("portfolio page has meta description", async ({ page }) => {
 test("robots.txt is accessible", async ({ page }) => {
   const response = await page.goto("/robots.txt");
   expect(response?.status()).toBe(200);
-  await expect(page.locator("body")).toContainText("User-agent");
+  await expect(page.locator("body")).toContainText("User-Agent");
 });
 
 test("sitemap.xml is accessible", async ({ page }) => {

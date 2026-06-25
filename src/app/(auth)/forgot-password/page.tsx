@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +16,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 
 export default function ForgotPasswordPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resetUrl, setResetUrl] = useState<string | null>(null);
@@ -46,7 +44,7 @@ export default function ForgotPasswordPage() {
       if (data.resetUrl) {
         setResetUrl(data.resetUrl);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to send reset link");
     } finally {
       setIsLoading(false);
@@ -59,7 +57,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle>Forgot Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we will send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <CardContent>

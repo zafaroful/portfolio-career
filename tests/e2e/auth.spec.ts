@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 
 test("login page loads", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByText("Sign in", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
   await expect(page.getByText("Forgot password?")).toBeVisible();
 });
 

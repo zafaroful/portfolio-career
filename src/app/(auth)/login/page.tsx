@@ -16,6 +16,7 @@ import { FormField } from "@/components/common/form-field";
 import { LoadingState } from "@/components/common/loading-state";
 import { AuthLayout } from "@/components/layout/auth-layout";
 import { toast } from "sonner";
+import Link from "next/link";
 
 function LoginForm() {
   const router = useRouter();
@@ -74,6 +75,14 @@ function LoginForm() {
               autoComplete="current-password"
             />
           </FormField>
+          <div className="text-right">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Signing in..." : "Sign in"}
           </Button>

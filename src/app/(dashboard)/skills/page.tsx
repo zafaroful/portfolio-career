@@ -220,6 +220,13 @@ export default function SkillsPage() {
         emptyIcon={Sparkles}
         emptyTitle="No skills yet"
         emptyDescription="Add your first skill to build your portfolio profile."
+        emptyAction={{
+          label: "Add your first skill",
+          onClick: () => {
+            resetForm();
+            setOpen(true);
+          },
+        }}
       >
         <Table>
           <TableHeader>

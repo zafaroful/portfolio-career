@@ -147,14 +147,79 @@ function ClassicResume({ data }: { data: ResumeData }) {
   );
 }
 
+function MinimalResume({ data }: { data: ResumeData }) {
+  return (
+    <Document>
+      <Page size="A4" style={{ ...styles.page, fontFamily: "Helvetica", fontSize: 11 }}>
+        <View style={styles.header}>
+          <Text style={{ ...styles.name, fontSize: 20 }}>{data.user.name}</Text>
+          <Text style={{ fontSize: 10, marginBottom: 4 }}>{data.user.email}</Text>
+          {data.user.bio && <Text style={{ fontSize: 10 }}>{data.user.bio}</Text>}
+        </View>
+
+        {data.skills.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>SKILLS</Text>
+            <Text>{data.skills.map((s) => s.name).join(" | ")}</Text>
+          </View>
+        )}
+
+        {data.projects.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>PROJECTS</Text>
+            {data.projects.map((p) => (
+              <View key={p.id} style={styles.row}>
+                <Text style={styles.bold}>{p.title}</Text>
+                {p.role && <Text>{p.role}</Text>}
+                {p.description && <Text>{p.description}</Text>}
+                {(p.techStack as string[]).length > 0 && (
+                  <Text style={styles.tag}>
+                    {(p.techStack as string[]).join(", ")}
+                  </Text>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.certifications.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>CERTIFICATIONS</Text>
+            {data.certifications.map((c) => (
+              <View key={c.id} style={styles.row}>
+                <Text>{c.title} — {c.issuer}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.achievements.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ACHIEVEMENTS</Text>
+            {data.achievements.map((a) => (
+              <View key={a.id} style={styles.row}>
+                <Text>{a.title}{a.description ? ` — ${a.description}` : ""}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </Page>
+    </Document>
+  );
+}
+
+export type ResumeTemplateId = "modern" | "classic" | "minimal";
+
 export async function generateResumePdf(
   data: ResumeData,
-  templateId: "modern" | "classic",
+  templateId: ResumeTemplateId,
 ): Promise<Buffer> {
   const component =
     templateId === "classic"
       ? React.createElement(ClassicResume, { data })
-      : React.createElement(ModernResume, { data });
+      : templateId === "minimal"
+        ? React.createElement(MinimalResume, { data })
+        : React.createElement(ModernResume, { data });
 
   // @ts-expect-error react-pdf Document typing mismatch with createElement
   const blob = await pdf(component).toBlob();

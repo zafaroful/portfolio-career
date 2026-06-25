@@ -9,6 +9,10 @@ type DataTableProps = {
   emptyIcon?: LucideIcon;
   emptyTitle?: string;
   emptyDescription?: string;
+  emptyAction?: {
+    label: string;
+    onClick: () => void;
+  };
   loadingRows?: number;
   children: React.ReactNode;
   className?: string;
@@ -20,6 +24,7 @@ export function DataTable({
   emptyIcon,
   emptyTitle = "No items yet",
   emptyDescription = "Get started by adding your first item.",
+  emptyAction,
   loadingRows = 5,
   children,
   className,
@@ -34,6 +39,7 @@ export function DataTable({
         icon={emptyIcon}
         title={emptyTitle}
         description={emptyDescription}
+        action={emptyAction}
         className={className}
       />
     );

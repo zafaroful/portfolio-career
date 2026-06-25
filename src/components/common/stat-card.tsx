@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -10,6 +11,8 @@ type StatCardProps = {
     value: string;
     positive?: boolean;
   };
+  href?: string;
+  tooltip?: string;
   className?: string;
 };
 
@@ -18,10 +21,19 @@ export function StatCard({
   value,
   icon: Icon,
   trend,
+  href,
+  tooltip,
   className,
 }: StatCardProps) {
-  return (
-    <Card className={cn("shadow-elevation-sm", className)}>
+  const card = (
+    <Card
+      className={cn(
+        "shadow-elevation-sm transition-shadow",
+        href && "cursor-pointer hover:shadow-elevation-md",
+        className,
+      )}
+      title={tooltip}
+    >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {label}
@@ -43,4 +55,10 @@ export function StatCard({
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href}>{card}</Link>;
+  }
+
+  return card;
 }

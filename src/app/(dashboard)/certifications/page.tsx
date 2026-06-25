@@ -244,6 +244,13 @@ export default function CertificationsPage() {
         emptyIcon={BadgeCheck}
         emptyTitle="No certifications yet"
         emptyDescription="Add credentials to track expiry dates and showcase expertise."
+        emptyAction={{
+          label: "Add your first certification",
+          onClick: () => {
+            resetForm();
+            setOpen(true);
+          },
+        }}
       >
         <Table>
           <TableHeader>

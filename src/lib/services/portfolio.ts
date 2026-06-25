@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { computeOnboardingState, formatActivityDescription } from "@/lib/onboarding";
 
 export async function getPortfolioData(slug: string) {
   const user = await prisma.user.findFirst({
@@ -8,7 +9,10 @@ export async function getPortfolioData(slug: string) {
       certifications: { orderBy: { issueDate: "desc" } },
       achievements: { orderBy: { date: "desc" } },
       projects: {
-        where: { isPublic: true },
+        where: {
+          isPublic: true,
+          status: { in: ["ACTIVE", "COMPLETED"] },
+        },
         orderBy: { startDate: "desc" },
       },
     },
@@ -29,7 +33,125 @@ export async function getOwnerData(userId: string) {
   });
 }
 
+async function resolveRecordName(tableName: string, recordId: string) {
+  switch (tableName) {
+    case "skills": {
+      const r = await prisma.skill.findUnique({ where: { id: recordId }, select: { name: true } });
+      return r?.name ?? null;
+    }
+    case "certifications": {
+      const r = await prisma.certification.findUnique({
+        where: { id: recordId },
+        select: { title: true },
+      });
+      return r?.title ?? null;
+    }
+    case "achievements": {
+      const r = await prisma.achievement.findUnique({
+        where: { id: recordId },
+        select: { title: true },
+      });
+      return r?.title ?? null;
+    }
+    case "projects": {
+      const r = await prisma.project.findUnique({
+        where: { id: recordId },
+        select: { title: true },
+      });
+      return r?.title ?? null;
+    }
+    case "resumes": {
+      const r = await prisma.resume.findUnique({
+        where: { id: recordId },
+        select: { versionName: true },
+      });
+      return r?.versionName ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
+async function enrichActivityLogs(
+  logs: Array<{
+    id: string;
+    action: string;
+    tableName: string;
+    recordId: string;
+    timestamp: Date;
+    metadata: unknown;
+  }>,
+) {
+  return Promise.all(
+    logs.map(async (log) => {
+      const metadata = log.metadata as Record<string, unknown> | null;
+      const recordName =
+        (typeof metadata?.recordName === "string" ? metadata.recordName : null) ??
+        (await resolveRecordName(log.tableName, log.recordId));
+
+      return {
+        id: log.id,
+        action: log.action,
+        tableName: log.tableName,
+        recordId: log.recordId,
+        timestamp: log.timestamp.toISOString(),
+        recordName,
+        description: formatActivityDescription(log.action, log.tableName, recordName),
+      };
+    }),
+  );
+}
+
+async function getMonthlyTrend(userId: string, model: "skill" | "certification" | "achievement" | "project" | "resume") {
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  let addedThisMonth = 0;
+  switch (model) {
+    case "skill":
+      addedThisMonth = await prisma.skill.count({
+        where: { userId, createdAt: { gte: startOfMonth } },
+      });
+      break;
+    case "certification":
+      addedThisMonth = await prisma.certification.count({
+        where: { userId, createdAt: { gte: startOfMonth } },
+      });
+      break;
+    case "achievement":
+      addedThisMonth = await prisma.achievement.count({
+        where: { userId, createdAt: { gte: startOfMonth } },
+      });
+      break;
+    case "project":
+      addedThisMonth = await prisma.project.count({
+        where: { userId, createdAt: { gte: startOfMonth } },
+      });
+      break;
+    case "resume":
+      addedThisMonth = await prisma.resume.count({
+        where: { userId, createdAt: { gte: startOfMonth } },
+      });
+      break;
+  }
+
+  return addedThisMonth > 0
+    ? { value: `+${addedThisMonth} this month`, positive: true }
+    : undefined;
+}
+
 export async function getDashboardStats(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      onboardingCompleted: true,
+      onboardingStep: true,
+      isPublic: true,
+      portfolioSlug: true,
+    },
+  });
+
   const [skills, certifications, achievements, projects, resumes] =
     await Promise.all([
       prisma.skill.count({ where: { userId } }),
@@ -52,11 +174,13 @@ export async function getDashboardStats(userId: string) {
     orderBy: { expiryDate: "asc" },
   });
 
-  const recentActivity = await prisma.auditLog.findMany({
+  const recentActivityRaw = await prisma.auditLog.findMany({
     where: { userId },
     orderBy: { timestamp: "desc" },
-    take: 10,
+    take: 5,
   });
+
+  const recentActivity = await enrichActivityLogs(recentActivityRaw);
 
   const categorizeExpiry = (expiryDate: Date | null) => {
     if (!expiryDate) return "none";
@@ -67,13 +191,66 @@ export async function getDashboardStats(userId: string) {
     return "valid";
   };
 
+  const counts = { skills, certifications, achievements, projects, resumes };
+
+  const onboarding = computeOnboardingState({
+    counts,
+    isPublic: user?.isPublic ?? false,
+    portfolioSlug: user?.portfolioSlug ?? null,
+    onboardingCompleted: user?.onboardingCompleted ?? false,
+    onboardingStep: user?.onboardingStep ?? 0,
+  });
+
+  // Auto-update onboarding progress when all steps complete
+  if (user && onboarding.completedCount === onboarding.totalSteps && !user.onboardingCompleted) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        onboardingCompleted: true,
+        onboardingStep: onboarding.totalSteps,
+      },
+    });
+    onboarding.onboardingCompleted = true;
+  } else if (user && onboarding.completedCount !== user.onboardingStep) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { onboardingStep: onboarding.completedCount },
+    });
+  }
+
+  const [skillsTrend, certsTrend, achievementsTrend, projectsTrend, resumesTrend] =
+    await Promise.all([
+      getMonthlyTrend(userId, "skill"),
+      getMonthlyTrend(userId, "certification"),
+      getMonthlyTrend(userId, "achievement"),
+      getMonthlyTrend(userId, "project"),
+      getMonthlyTrend(userId, "resume"),
+    ]);
+
+  const certAlertCount = expiringCerts.filter((c) => {
+    const status = categorizeExpiry(c.expiryDate);
+    return status === "expired" || ["30", "60", "90"].includes(status);
+  }).length;
+
   return {
-    counts: { skills, certifications, achievements, projects, resumes },
+    counts,
+    trends: {
+      skills: skillsTrend,
+      certifications: certsTrend,
+      achievements: achievementsTrend,
+      projects: projectsTrend,
+      resumes: resumesTrend,
+    },
     expiringCerts: expiringCerts.map((c) => ({
-      ...c,
+      id: c.id,
+      title: c.title,
+      issuer: c.issuer,
+      expiryDate: c.expiryDate?.toISOString() ?? null,
       expiryStatus: categorizeExpiry(c.expiryDate),
     })),
+    certAlertCount,
     recentActivity,
+    onboarding,
   };
 }
 
@@ -125,4 +302,12 @@ export async function searchAll(userId: string, query: string) {
   ]);
 
   return { skills, certifications, achievements, projects };
+}
+
+export async function getPublicPortfolioSlugs() {
+  const users = await prisma.user.findMany({
+    where: { isPublic: true, portfolioSlug: { not: null } },
+    select: { portfolioSlug: true, updatedAt: true },
+  });
+  return users.filter((u): u is { portfolioSlug: string; updatedAt: Date } => !!u.portfolioSlug);
 }

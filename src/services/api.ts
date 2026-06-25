@@ -42,4 +42,6 @@ export const api = {
     request<T>("/upload", { method: "POST", body: formData }),
   uploadResume: <T>(formData: FormData) =>
     request<T>("/resumes/upload", { method: "POST", body: formData }),
+  generateResume: <T>(body: { versionName: string; templateId: string }) =>
+    request<T>("/resumes/generate", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { api } from "@/services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,9 @@ import {
   PageHeader,
   StatCard,
 } from "@/components/common";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 import { formatDate } from "@/lib/utils";
+import type { OnboardingState } from "@/lib/onboarding";
 import { useState } from "react";
 import {
   AlertTriangle,
@@ -20,9 +23,13 @@ import {
   BadgeCheck,
   FileText,
   FolderKanban,
+  Plus,
   Search,
   Sparkles,
+  Trash2,
+  Pencil,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import {
   BarChart,
   Bar,
@@ -41,6 +48,13 @@ type DashboardData = {
     projects: number;
     resumes: number;
   };
+  trends: {
+    skills?: { value: string; positive?: boolean };
+    certifications?: { value: string; positive?: boolean };
+    achievements?: { value: string; positive?: boolean };
+    projects?: { value: string; positive?: boolean };
+    resumes?: { value: string; positive?: boolean };
+  };
   expiringCerts: Array<{
     id: string;
     title: string;
@@ -48,13 +62,17 @@ type DashboardData = {
     expiryDate: string | null;
     expiryStatus: string;
   }>;
+  certAlertCount: number;
   recentActivity: Array<{
     id: string;
     action: string;
     tableName: string;
     recordId: string;
     timestamp: string;
+    recordName: string | null;
+    description: string;
   }>;
+  onboarding: OnboardingState;
 };
 
 type SearchResults = {
@@ -63,6 +81,19 @@ type SearchResults = {
   achievements: Array<{ id: string; title: string }>;
   projects: Array<{ id: string; title: string }>;
 };
+
+function getActivityIcon(action: string) {
+  switch (action) {
+    case "CREATE":
+      return Plus;
+    case "UPDATE":
+      return Pencil;
+    case "DELETE":
+      return Trash2;
+    default:
+      return FileText;
+  }
+}
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,6 +123,7 @@ export default function DashboardPage() {
   const expiredCerts = stats?.expiringCerts.filter((c) => c.expiryStatus === "expired") ?? [];
   const expiringSoon =
     stats?.expiringCerts.filter((c) => ["30", "60", "90"].includes(c.expiryStatus)) ?? [];
+  const hasCertAlerts = expiredCerts.length > 0 || expiringSoon.length > 0;
 
   return (
     <PageContainer>
@@ -138,24 +170,102 @@ export default function DashboardPage() {
         <LoadingState variant="cards" />
       ) : (
         <>
+          {stats?.onboarding && !stats.onboarding.onboardingCompleted && (
+            <Card className="border-primary/30 bg-primary/5 shadow-elevation-sm">
+              <CardHeader>
+                <CardTitle>Welcome to Portfolio Career</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Get started by completing these steps to build your professional portfolio.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <OnboardingChecklist onboarding={stats.onboarding} variant="embedded" />
+              </CardContent>
+            </Card>
+          )}
+
+          {hasCertAlerts && (
+            <Alert variant="destructive">
+              <AlertTriangle className="size-4" />
+              <AlertTitle>Certification alerts</AlertTitle>
+              <AlertDescription className="space-y-2">
+                {expiredCerts.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center gap-2">
+                    <Badge variant="destructive">Expired</Badge>
+                    <span>
+                      {c.title} — {c.issuer}
+                    </span>
+                    <Link
+                      href={`/certifications?edit=${c.id}`}
+                      className="text-sm underline"
+                    >
+                      Renew
+                    </Link>
+                  </div>
+                ))}
+                {expiringSoon.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={c.expiryStatus === "30" ? "destructive" : "outline"}
+                    >
+                      Expiring in {c.expiryStatus} days
+                    </Badge>
+                    <span>
+                      {c.title} — expires {formatDate(c.expiryDate)}
+                    </span>
+                    <Link
+                      href={`/certifications?edit=${c.id}`}
+                      className="text-sm underline"
+                    >
+                      Renew
+                    </Link>
+                  </div>
+                ))}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard label="Skills" value={stats?.counts.skills ?? 0} icon={Sparkles} />
+            <StatCard
+              label="Skills"
+              value={stats?.counts.skills ?? 0}
+              icon={Sparkles}
+              trend={stats?.trends.skills}
+              href="/skills"
+              tooltip="View and manage skills"
+            />
             <StatCard
               label="Certifications"
               value={stats?.counts.certifications ?? 0}
               icon={BadgeCheck}
+              trend={stats?.trends.certifications}
+              href="/certifications"
+              tooltip="View certifications and expiry alerts"
             />
             <StatCard
               label="Achievements"
               value={stats?.counts.achievements ?? 0}
               icon={Award}
+              trend={stats?.trends.achievements}
+              href="/achievements"
+              tooltip="View achievements"
             />
             <StatCard
               label="Projects"
               value={stats?.counts.projects ?? 0}
               icon={FolderKanban}
+              trend={stats?.trends.projects}
+              href="/projects"
+              tooltip="View and manage projects"
             />
-            <StatCard label="Resumes" value={stats?.counts.resumes ?? 0} icon={FileText} />
+            <StatCard
+              label="Resumes"
+              value={stats?.counts.resumes ?? 0}
+              icon={FileText}
+              trend={stats?.trends.resumes}
+              href="/resumes"
+              tooltip="Generate or upload resumes"
+            />
           </div>
 
           <Card className="shadow-elevation-sm">
@@ -175,44 +285,36 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {(expiredCerts.length > 0 || expiringSoon.length > 0) && (
-            <Alert variant="destructive">
-              <AlertTriangle className="size-4" />
-              <AlertTitle>Certification alerts</AlertTitle>
-              <AlertDescription className="space-y-1">
-                {expiredCerts.map((c) => (
-                  <div key={c.id}>
-                    <Badge variant="destructive">Expired</Badge> {c.title} — {c.issuer}
-                  </div>
-                ))}
-                {expiringSoon.map((c) => (
-                  <div key={c.id}>
-                    <Badge variant="outline">Expiring in {c.expiryStatus} days</Badge>{" "}
-                    {c.title} — expires {formatDate(c.expiryDate)}
-                  </div>
-                ))}
-              </AlertDescription>
-            </Alert>
-          )}
-
           <Card className="shadow-elevation-sm">
             <CardHeader>
               <CardTitle className="text-base">Recent activity</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+            <CardContent className="space-y-3 text-sm">
               {stats?.recentActivity.length === 0 && (
-                <p className="text-muted-foreground">No recent activity.</p>
-              )}
-              {stats?.recentActivity.map((log) => (
-                <div key={log.id} className="flex justify-between gap-4">
-                  <span>
-                    {log.action} on {log.tableName}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {formatDate(log.timestamp, "PP p")}
-                  </span>
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <p className="text-muted-foreground">No recent activity yet.</p>
+                  <Link
+                    href="/skills"
+                    className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground"
+                  >
+                    Add your first skill
+                  </Link>
                 </div>
-              ))}
+              )}
+              {stats?.recentActivity.map((log) => {
+                const Icon = getActivityIcon(log.action);
+                return (
+                  <div key={log.id} className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-2">
+                      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <span>{log.description}</span>
+                    </div>
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
+                    </span>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </>

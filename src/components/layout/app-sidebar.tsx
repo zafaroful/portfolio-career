@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { dashboardNavItems } from "@/lib/nav-config";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -19,6 +20,10 @@ type UserSettings = {
   photoUrl: string | null;
 };
 
+type DashboardSummary = {
+  certAlertCount: number;
+};
+
 export function AppSidebar() {
   const pathname = usePathname();
   const { data: settingsData } = useQuery({
@@ -26,13 +31,13 @@ export function AppSidebar() {
     queryFn: () => api.get<UserSettings>("/settings"),
   });
 
+  const { data: dashboardData } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: () => api.get<DashboardSummary>("/dashboard"),
+  });
+
   const user = settingsData?.data;
-  const initials = user?.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) ?? "U";
+  const certAlertCount = dashboardData?.data?.certAlertCount ?? 0;
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -47,6 +52,8 @@ export function AppSidebar() {
           const Icon = item.icon;
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const showCertBadge = item.href === "/certifications" && certAlertCount > 0;
+
           return (
             <Link
               key={item.href}
@@ -59,7 +66,12 @@ export function AppSidebar() {
               )}
             >
               <Icon className="size-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {showCertBadge && (
+                <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs">
+                  {certAlertCount}
+                </Badge>
+              )}
             </Link>
           );
         })}

@@ -1,7 +1,11 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SkillBadge } from "@/components/features/skills/skill-badge";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type {
   Skill,
   Certification,
@@ -24,6 +28,36 @@ type PortfolioData = {
 };
 
 export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
+  const [techFilter, setTechFilter] = useState<string | null>(null);
+  const [groupByCategory, setGroupByCategory] = useState(false);
+
+  const allTech = useMemo(
+    () =>
+      [
+        ...new Set(
+          portfolio.projects.flatMap((p) => (p.techStack as string[]) ?? []),
+        ),
+      ].sort(),
+    [portfolio.projects],
+  );
+
+  const filteredProjects = useMemo(() => {
+    if (!techFilter) return portfolio.projects;
+    return portfolio.projects.filter((p) =>
+      (p.techStack as string[]).includes(techFilter),
+    );
+  }, [portfolio.projects, techFilter]);
+
+  const projectsByCategory = useMemo(() => {
+    if (!groupByCategory) return null;
+    return filteredProjects.reduce<Record<string, Project[]>>((acc, project) => {
+      const cat = (project as Project & { category?: string | null }).category ?? "Other";
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(project);
+      return acc;
+    }, {});
+  }, [filteredProjects, groupByCategory]);
+
   const skillsByCategory = portfolio.skills.reduce<Record<string, Skill[]>>(
     (acc, skill) => {
       if (!acc[skill.category]) acc[skill.category] = [];
@@ -83,48 +117,63 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
 
         {portfolio.projects.length > 0 && (
           <section aria-labelledby="projects-heading">
-            <h2 id="projects-heading" className="mb-4 text-xl font-semibold">Projects</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {portfolio.projects.map((project) => (
-                <Card key={project.id} className="shadow-elevation-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">{project.title}</CardTitle>
-                    {project.role && (
-                      <p className="text-sm text-muted-foreground">{project.role}</p>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 id="projects-heading" className="text-xl font-semibold">Projects</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setGroupByCategory((v) => !v)}
+              >
+                {groupByCategory ? "Flat list" : "Group by category"}
+              </Button>
+            </div>
+            {allTech.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTechFilter(null)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-sm transition-colors",
+                    !techFilter && "border-primary bg-primary/10",
+                  )}
+                >
+                  All
+                </button>
+                {allTech.map((tech) => (
+                  <button
+                    key={tech}
+                    type="button"
+                    onClick={() => setTechFilter(tech === techFilter ? null : tech)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors hover:bg-muted",
+                      techFilter === tech && "border-primary bg-primary/10",
                     )}
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {project.imageUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={project.imageUrl}
-                        alt={project.title}
-                        className="rounded-md h-32 w-full object-cover"
-                      />
-                    )}
-                    {project.description && (
-                      <p className="text-sm">{project.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-1">
-                      {(project.techStack as string[]).map((t) => (
-                        <Badge key={t} variant="outline">{t}</Badge>
+                  >
+                    {tech}
+                  </button>
+                ))}
+              </div>
+            )}
+            {groupByCategory && projectsByCategory ? (
+              <div className="space-y-8">
+                {Object.entries(projectsByCategory).map(([category, projects]) => (
+                  <div key={category}>
+                    <h3 className="mb-3 text-lg font-medium">{category}</h3>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {projects.map((project) => (
+                        <ProjectCard key={project.id} project={project} />
                       ))}
                     </div>
-                    {(project.links as Array<{ label: string; url: string }>).map((link) => (
-                      <a
-                        key={link.url}
-                        href={link.url}
-                        className="text-sm text-primary underline"
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {filteredProjects.map((project) => (
+                  <ProjectCard key={project.id} project={project} />
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -175,5 +224,52 @@ export function PortfolioView({ portfolio }: { portfolio: PortfolioData }) {
         )}
       </main>
     </div>
+  );
+}
+
+function ProjectCard({ project }: { project: Project }) {
+  const category = (project as Project & { category?: string | null }).category;
+
+  return (
+    <Card className="shadow-elevation-sm">
+      <CardHeader>
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-base">{project.title}</CardTitle>
+          {category && <Badge variant="secondary">{category}</Badge>}
+        </div>
+        {project.role && (
+          <p className="text-sm text-muted-foreground">{project.role}</p>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {project.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={project.imageUrl}
+            alt={project.title}
+            className="h-32 w-full rounded-md object-cover"
+          />
+        )}
+        {project.description && <p className="text-sm">{project.description}</p>}
+        <div className="flex flex-wrap gap-1">
+          {(project.techStack as string[]).map((t) => (
+            <Badge key={t} variant="outline">
+              {t}
+            </Badge>
+          ))}
+        </div>
+        {(project.links as Array<{ label: string; url: string }>).map((link) => (
+          <a
+            key={link.url}
+            href={link.url}
+            className="text-sm text-primary underline"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {link.label}
+          </a>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

@@ -37,6 +37,8 @@ export const achievementCreateSchema = z.object({
 
 export const achievementUpdateSchema = achievementCreateSchema.partial();
 
+export const projectStatusSchema = z.enum(["DRAFT", "ACTIVE", "COMPLETED", "ARCHIVED"]);
+
 export const projectCreateSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(5000).optional().nullable(),
@@ -49,13 +51,16 @@ export const projectCreateSchema = z.object({
     .default([]),
   imageUrl: z.string().optional().nullable(),
   isPublic: z.boolean().default(true),
+  status: projectStatusSchema.default("ACTIVE"),
+  category: z.string().max(100).optional().nullable(),
+  tags: z.array(z.string()).default([]),
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();
 
 export const resumeGenerateSchema = z.object({
   versionName: z.string().min(1).max(100),
-  templateId: z.enum(["modern", "classic"]),
+  templateId: z.enum(["modern", "classic", "minimal"]),
 });
 
 export const resumeUploadSchema = z.object({

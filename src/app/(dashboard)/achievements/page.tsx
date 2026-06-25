@@ -202,6 +202,13 @@ export default function AchievementsPage() {
           icon={Award}
           title="No achievements yet"
           description="Record awards, promotions, and milestones on your career timeline."
+          action={{
+            label: "Add your first achievement",
+            onClick: () => {
+              resetForm();
+              setOpen(true);
+            },
+          }}
         />
       ) : (
         <Tabs defaultValue="timeline">

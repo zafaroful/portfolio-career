@@ -15,10 +15,17 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DataTable,
   FormField,
   PageContainer,
   PageHeader,
+  ConfirmDialog,
 } from "@/components/common";
 import {
   cn,
@@ -29,7 +36,8 @@ import {
 } from "@/lib/utils";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, FileText, Upload } from "lucide-react";
+import { Download, FileText, Upload, Eye, Sparkles, Trash2 } from "lucide-react";
+import { TemplatePreview, type ResumeTemplateId } from "@/components/resume/template-preview";
 
 type Resume = {
   id: string;
@@ -43,6 +51,7 @@ function getTemplateLabel(templateId: string) {
   if (templateId === "uploaded") return "Uploaded";
   if (templateId === "modern") return "Modern";
   if (templateId === "classic") return "Classic";
+  if (templateId === "minimal") return "Minimal";
   return templateId;
 }
 
@@ -57,6 +66,10 @@ export default function ResumesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadVersionName, setUploadVersionName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewResume, setPreviewResume] = useState<Resume | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
+  const [generateVersionName, setGenerateVersionName] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateId>("modern");
 
   const { data, isLoading } = useQuery({
     queryKey: ["resumes"],
@@ -99,20 +112,81 @@ export default function ResumesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const generateMutation = useMutation({
+    mutationFn: () => {
+      const versionName = generateVersionName.trim() || "Generated Resume";
+      return api.generateResume<Resume>({
+        versionName,
+        templateId: selectedTemplate,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Resume generated");
+      setGenerateVersionName("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/resumes/${id}`),
+    onSuccess: (_data, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Resume deleted");
+      setDeleteTarget(null);
+      setPreviewResume((current) => (current?.id === deletedId ? null : current));
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const resumes = data?.data ?? [];
 
   return (
     <PageContainer>
       <PageHeader
         title="Resumes"
-        description="Upload and manage your resume files."
+        description="Generate PDF resumes from your portfolio or upload existing files."
       />
 
-      <Card className="max-w-xl shadow-elevation-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Upload resume</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="shadow-elevation-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Generate resume</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              label="Version name"
+              description="Name this version for easy reference."
+            >
+              <Input
+                value={generateVersionName}
+                onChange={(e) => setGenerateVersionName(e.target.value)}
+                placeholder="e.g. Senior Developer CV"
+              />
+            </FormField>
+            <FormField label="Template" description="Choose a layout style for your PDF.">
+              <TemplatePreview
+                selected={selectedTemplate}
+                onSelect={setSelectedTemplate}
+              />
+            </FormField>
+            <Button
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              <Sparkles className="mr-2 size-4" />
+              {generateMutation.isPending ? "Generating..." : "Generate PDF"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-elevation-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Upload resume</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <FormField
             label="Version name"
             description="Optional — defaults to the file name if left empty."
@@ -151,6 +225,7 @@ export default function ResumesPage() {
           </Button>
         </CardContent>
       </Card>
+      </div>
 
       <Card className="shadow-elevation-sm">
         <CardHeader>
@@ -162,7 +237,7 @@ export default function ResumesPage() {
             isEmpty={!isLoading && resumes.length === 0}
             emptyIcon={FileText}
             emptyTitle="No resumes yet"
-            emptyDescription="Upload a resume file to get started."
+            emptyDescription="Generate a PDF from your portfolio or upload an existing file."
             className="border-0 shadow-none"
           >
             <Table>
@@ -171,7 +246,7 @@ export default function ResumesPage() {
                   <TableHead>Version</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Added</TableHead>
-                  <TableHead>Download</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -185,13 +260,33 @@ export default function ResumesPage() {
                     </TableCell>
                     <TableCell>{formatDate(resume.generatedAt, "PP p")}</TableCell>
                     <TableCell>
-                      <a
-                        href={`/api/v1/resumes/${resume.id}/download`}
-                        className="inline-flex items-center gap-1 text-primary underline"
-                      >
-                        <Download className="size-4" />
-                        {getDownloadLabel(resume)}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPreviewResume(resume)}
+                          className="h-8"
+                        >
+                          <Eye className="mr-1 size-4" />
+                          Preview
+                        </Button>
+                        <a
+                          href={`/api/v1/resumes/${resume.id}/download`}
+                          className="inline-flex items-center gap-1 text-primary underline"
+                        >
+                          <Download className="size-4" />
+                          {getDownloadLabel(resume)}
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTarget(resume)}
+                          className="h-8 text-destructive hover:text-destructive"
+                          aria-label={`Delete ${resume.versionName}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -200,6 +295,57 @@ export default function ResumesPage() {
           </DataTable>
         </CardContent>
       </Card>
+
+      <Dialog open={!!previewResume} onOpenChange={() => setPreviewResume(null)}>
+        <DialogContent className="max-w-5xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>{previewResume?.versionName}</DialogTitle>
+          </DialogHeader>
+          {previewResume && (
+            <div className="flex-1 overflow-hidden rounded-md border">
+              {previewResume.fileUrl?.endsWith('.pdf') || 
+               !previewResume.fileUrl?.match(/\.(doc|docx)$/i) ? (
+                <iframe
+                  src={`/api/v1/resumes/${previewResume.id}/preview`}
+                  className="w-full h-full"
+                  title={previewResume.versionName}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                  <FileText className="size-16 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Preview not available</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Word documents (.doc, .docx) cannot be previewed in the browser.
+                  </p>
+                  <a
+                    href={`/api/v1/resumes/${previewResume.id}/download`}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <Button>
+                      <Download className="mr-2 size-4" />
+                      Download to view
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete resume"
+        description={
+          deleteTarget
+            ? `Are you sure you want to delete "${deleteTarget.versionName}"? This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        isLoading={deleteMutation.isPending}
+      />
     </PageContainer>
   );
 }

@@ -25,19 +25,30 @@ enum AuditAction {
   DELETE
 }
 
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
 model User {
-  id             String   @id @default(cuid())
-  name           String
-  email          String   @unique
-  passwordHash   String   @map("password_hash")
-  role           UserRole @default(ADMIN)
-  portfolioSlug  String?  @unique @map("portfolio_slug")
-  linkedinUrl    String?  @map("linkedin_url")
-  bio            String?
-  photoUrl       String?  @map("photo_url")
-  isPublic       Boolean  @default(false) @map("is_public")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                    String    @id @default(cuid())
+  name                  String
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  role                  UserRole  @default(ADMIN)
+  portfolioSlug         String?   @unique @map("portfolio_slug")
+  linkedinUrl           String?   @map("linkedin_url")
+  bio                   String?
+  photoUrl              String?   @map("photo_url")
+  isPublic              Boolean   @default(false) @map("is_public")
+  resetPasswordToken    String?   @unique @map("reset_password_token")
+  resetPasswordExpiry   DateTime? @map("reset_password_expiry")
+  onboardingCompleted   Boolean   @default(false) @map("onboarding_completed")
+  onboardingStep        Int       @default(0) @map("onboarding_step")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   skills          Skill[]
   certifications  Certification[]
@@ -113,14 +124,19 @@ model Project {
   startDate   DateTime? @map("start_date")
   endDate     DateTime? @map("end_date")
   links       Json      @default("[]")
-  imageUrl    String?   @map("image_url")
-  isPublic    Boolean   @default(true) @map("is_public")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  imageUrl    String?       @map("image_url")
+  isPublic    Boolean       @default(true) @map("is_public")
+  status      ProjectStatus @default(ACTIVE)
+  category    String?
+  tags        String[]      @default([])
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+  @@index([category])
   @@map("projects")
 }
 

@@ -1,11 +1,17 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { writeFile, mkdir, readFile } from "fs/promises";
+import os from "os";
 import path from "path";
 
-const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+function getLocalUploadDir() {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), "portfolio-career-uploads");
+  }
+  return path.join(process.cwd(), "uploads");
+}
 
-function isR2Configured() {
+export function isR2Configured() {
   return !!(
     process.env.R2_ACCOUNT_ID &&
     process.env.R2_ACCESS_KEY_ID &&
@@ -124,8 +130,15 @@ export async function uploadFile(
     return { fileUrl: publicUrl, fileKey: key };
   }
 
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  const localPath = path.join(UPLOAD_DIR, key.replace(/\//g, "_"));
+  if (process.env.VERCEL) {
+    throw new Error(
+      "File storage is not configured. Add Cloudflare R2 environment variables on Vercel.",
+    );
+  }
+
+  const uploadDir = getLocalUploadDir();
+  await mkdir(uploadDir, { recursive: true });
+  const localPath = path.join(uploadDir, key.replace(/\//g, "_"));
   await writeFile(localPath, buffer);
   const fileUrl = `/api/v1/files/${encodeURIComponent(key.replace(/\//g, "_"))}`;
   return { fileUrl, fileKey: key };
@@ -143,7 +156,7 @@ export async function getSignedFileUrl(fileKey: string): Promise<string> {
       { expiresIn: 3600 },
     );
   }
-  const localPath = path.join(UPLOAD_DIR, fileKey.replace(/\//g, "_"));
+  const localPath = path.join(getLocalUploadDir(), fileKey.replace(/\//g, "_"));
   const buffer = await readFile(localPath);
   return `data:application/octet-stream;base64,${buffer.toString("base64")}`;
 }

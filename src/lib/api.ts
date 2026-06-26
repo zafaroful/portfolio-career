@@ -33,6 +33,12 @@ export function handleApiError(error: unknown) {
   if (error instanceof ZodError) {
     return apiError(error.issues.map((e) => e.message).join(", "), 400);
   }
+  if (error instanceof Error && error.message.includes("File storage is not configured")) {
+    return apiError(error.message, 503);
+  }
+  if (error instanceof Error && error.message.includes("File")) {
+    return apiError(error.message, 400);
+  }
   console.error(error);
   return apiError("Internal server error", 500);
 }

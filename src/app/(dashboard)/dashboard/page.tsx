@@ -14,9 +14,11 @@ import {
   StatCard,
 } from "@/components/common";
 import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
+import { AiCoachCard } from "@/components/dashboard/ai-coach-card";
+import { SkillsGapWidget } from "@/components/dashboard/skills-gap-widget";
 import { formatDate } from "@/lib/utils";
 import type { OnboardingState } from "@/lib/onboarding";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AlertTriangle,
   Award,
@@ -82,6 +84,31 @@ type SearchResults = {
   projects: Array<{ id: string; title: string }>;
 };
 
+type SmartSearchResults = SearchResults & {
+  interpretation?: string;
+};
+
+function isNaturalLanguageQuery(query: string) {
+  return /show me|which|from last|expiring|this quarter|this year|all my|find my|list all/i.test(
+    query,
+  );
+}
+
+function getEntityHref(type: string, id: string) {
+  switch (type) {
+    case "skills":
+      return `/skills`;
+    case "certifications":
+      return `/certifications?edit=${id}`;
+    case "achievements":
+      return `/achievements`;
+    case "projects":
+      return `/projects`;
+    default:
+      return "/dashboard";
+  }
+}
+
 function getActivityIcon(action: string) {
   switch (action) {
     case "CREATE":
@@ -97,6 +124,10 @@ function getActivityIcon(action: string) {
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const useSmartSearch = useMemo(
+    () => searchQuery.length >= 2 && isNaturalLanguageQuery(searchQuery),
+    [searchQuery],
+  );
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
@@ -106,8 +137,22 @@ export default function DashboardPage() {
   const { data: searchData } = useQuery({
     queryKey: ["search", searchQuery],
     queryFn: () => api.get<SearchResults>(`/search?q=${encodeURIComponent(searchQuery)}`),
-    enabled: searchQuery.length >= 2,
+    enabled: searchQuery.length >= 2 && !useSmartSearch,
   });
+
+  const { data: smartSearchData, isFetching: smartSearchLoading } = useQuery({
+    queryKey: ["smart-search", searchQuery],
+    queryFn: () => api.aiSmartSearch<SmartSearchResults>({ query: searchQuery }),
+    enabled: searchQuery.length >= 2 && useSmartSearch,
+  });
+
+  const activeSearchResults = useSmartSearch ? smartSearchData?.data : searchData?.data;
+  const searchInterpretation =
+    activeSearchResults &&
+    "interpretation" in activeSearchResults &&
+    typeof activeSearchResults.interpretation === "string"
+      ? activeSearchResults.interpretation
+      : undefined;
 
   const stats = data?.data;
   const chartData = stats
@@ -135,35 +180,51 @@ export default function DashboardPage() {
       <div className="relative">
         <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search skills, certs, projects..."
+          placeholder="Search skills, certs, projects... or ask: Show me React projects from last year"
           className="pl-9"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
+        {useSmartSearch && (
+          <Sparkles className="absolute top-1/2 right-3 size-4 -translate-y-1/2 text-primary" />
+        )}
       </div>
 
-      {searchQuery.length >= 2 && searchData?.data && (
+      {searchQuery.length >= 2 && activeSearchResults && (
         <Card className="shadow-elevation-sm">
           <CardHeader>
             <CardTitle className="text-base">Search results</CardTitle>
+            {searchInterpretation && (
+              <p className="text-sm text-muted-foreground">{searchInterpretation}</p>
+            )}
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {searchData.data.skills.map((s) => (
-              <div key={s.id}>
+            {activeSearchResults.skills.map((s) => (
+              <Link key={s.id} href={getEntityHref("skills", s.id)} className="block hover:underline">
                 Skill: {s.name} ({s.category})
-              </div>
+              </Link>
             ))}
-            {searchData.data.certifications.map((c) => (
-              <div key={c.id}>Cert: {c.title}</div>
+            {activeSearchResults.certifications.map((c) => (
+              <Link key={c.id} href={getEntityHref("certifications", c.id)} className="block hover:underline">
+                Cert: {c.title}
+              </Link>
             ))}
-            {searchData.data.achievements.map((a) => (
-              <div key={a.id}>Achievement: {a.title}</div>
+            {activeSearchResults.achievements.map((a) => (
+              <Link key={a.id} href={getEntityHref("achievements", a.id)} className="block hover:underline">
+                Achievement: {a.title}
+              </Link>
             ))}
-            {searchData.data.projects.map((p) => (
-              <div key={p.id}>Project: {p.title}</div>
+            {activeSearchResults.projects.map((p) => (
+              <Link key={p.id} href={getEntityHref("projects", p.id)} className="block hover:underline">
+                Project: {p.title}
+              </Link>
             ))}
           </CardContent>
         </Card>
+      )}
+
+      {searchQuery.length >= 2 && useSmartSearch && smartSearchLoading && (
+        <p className="text-sm text-muted-foreground">Running smart search...</p>
       )}
 
       {isLoading ? (
@@ -266,6 +327,11 @@ export default function DashboardPage() {
               href="/resumes"
               tooltip="Generate or upload resumes"
             />
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <AiCoachCard />
+            <SkillsGapWidget />
           </div>
 
           <Card className="shadow-elevation-sm">

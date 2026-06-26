@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { computeOnboardingState, formatActivityDescription } from "@/lib/onboarding";
+import type { SmartSearchFilters } from "@/lib/validators/ai";
 
 export async function getPortfolioData(slug: string) {
   const user = await prisma.user.findFirst({
@@ -300,6 +301,108 @@ export async function searchAll(userId: string, query: string) {
       take: 20,
     }),
   ]);
+
+  return { skills, certifications, achievements, projects };
+}
+
+function parseDate(value?: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+export async function smartSearch(
+  userId: string,
+  filters: SmartSearchFilters,
+  fallbackQuery?: string,
+) {
+  const entityTypes = filters.entityTypes ?? [
+    "skills",
+    "certifications",
+    "achievements",
+    "projects",
+  ];
+
+  const keywordWhere = (fields: string[]) => {
+    if (!filters.keywords?.length) return undefined;
+    return {
+      OR: filters.keywords.flatMap((keyword) =>
+        fields.map((field) => ({
+          [field]: { contains: keyword, mode: "insensitive" as const },
+        })),
+      ),
+    };
+  };
+
+  const dateFilter = (field: string) => {
+    if (!filters.dateRange || filters.dateRange.field !== field) return {};
+    const from = parseDate(filters.dateRange.from);
+    const to = parseDate(filters.dateRange.to);
+    const clause: Record<string, unknown> = {};
+    if (from) clause.gte = from;
+    if (to) clause.lte = to;
+    return Object.keys(clause).length ? { [field]: clause } : {};
+  };
+
+  const now = new Date();
+  const expiringBefore = filters.expiringWithinDays
+    ? new Date(now.getTime() + filters.expiringWithinDays * 86400000)
+    : undefined;
+
+  const [skills, certifications, achievements, projects] = await Promise.all([
+    entityTypes.includes("skills")
+      ? prisma.skill.findMany({
+          where: {
+            userId,
+            ...keywordWhere(["name", "category"]),
+          },
+          take: 20,
+        })
+      : Promise.resolve([]),
+    entityTypes.includes("certifications")
+      ? prisma.certification.findMany({
+          where: {
+            userId,
+            ...(expiringBefore
+              ? { expiryDate: { lte: expiringBefore, gte: now } }
+              : {}),
+            ...keywordWhere(["title", "issuer"]),
+            ...dateFilter("expiryDate"),
+            ...dateFilter("issueDate"),
+          },
+          take: 20,
+        })
+      : Promise.resolve([]),
+    entityTypes.includes("achievements")
+      ? prisma.achievement.findMany({
+          where: {
+            userId,
+            ...keywordWhere(["title", "description"]),
+            ...dateFilter("date"),
+          },
+          take: 20,
+        })
+      : Promise.resolve([]),
+    entityTypes.includes("projects")
+      ? prisma.project.findMany({
+          where: {
+            userId,
+            ...(filters.status ? { status: filters.status as "DRAFT" | "ACTIVE" | "COMPLETED" | "ARCHIVED" } : {}),
+            ...keywordWhere(["title", "description", "category"]),
+            ...dateFilter("startDate"),
+            ...dateFilter("endDate"),
+          },
+          take: 20,
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const hasResults =
+    skills.length + certifications.length + achievements.length + projects.length > 0;
+
+  if (!hasResults && fallbackQuery) {
+    return searchAll(userId, fallbackQuery);
+  }
 
   return { skills, certifications, achievements, projects };
 }

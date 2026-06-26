@@ -37,6 +37,7 @@ import { SkillBadge } from "@/components/features/skills/skill-badge";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus, Sparkles } from "lucide-react";
+import { InterviewQuestionsDialog } from "@/components/ai/interview-questions-dialog";
 
 type Skill = {
   id: string;
@@ -58,6 +59,7 @@ export default function SkillsPage() {
     proficiency: "INTERMEDIATE",
     yearsExperience: 0,
   });
+  const [interviewTarget, setInterviewTarget] = useState<Skill | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["skills"],
@@ -248,17 +250,30 @@ export default function SkillsPage() {
                 </TableCell>
                 <TableCell>{skill.yearsExperience}</TableCell>
                 <TableCell>
-                  <TableActions
-                    onEdit={() => openEdit(skill)}
-                    onDelete={() => deleteMutation.mutate(skill.id)}
-                    isDeleting={deleteMutation.isPending}
-                  />
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setInterviewTarget(skill)}>
+                      Prep
+                    </Button>
+                    <TableActions
+                      onEdit={() => openEdit(skill)}
+                      onDelete={() => deleteMutation.mutate(skill.id)}
+                      isDeleting={deleteMutation.isPending}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </DataTable>
+
+      <InterviewQuestionsDialog
+        open={!!interviewTarget}
+        onOpenChange={(open) => !open && setInterviewTarget(null)}
+        entityType="skill"
+        entityId={interviewTarget?.id ?? ""}
+        entityName={interviewTarget?.name ?? ""}
+      />
     </PageContainer>
   );
 }

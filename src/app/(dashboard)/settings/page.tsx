@@ -16,7 +16,11 @@ import {
 import { toast } from "sonner";
 import { useState } from "react";
 import { isValidHttpUrl, normalizeExternalUrl } from "@/lib/utils";
-import { User } from "lucide-react";
+import { User, Sparkles } from "lucide-react";
+import { AiAssistButton } from "@/components/ai/ai-assist-button";
+import { AiResultPanel } from "@/components/ai/ai-result-panel";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 type Settings = {
@@ -37,6 +41,12 @@ function SettingsForm({ settings }: { settings: Settings }) {
     linkedinUrl: settings.linkedinUrl ?? "",
     isPublic: settings.isPublic,
   });
+  const [aiBio, setAiBio] = useState<string | null>(null);
+  const [seoSuggestions, setSeoSuggestions] = useState<{
+    title: string;
+    description: string;
+    keywords: string[];
+  } | null>(null);
 
   const updateMutation = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.patch<Settings>("/settings", body),
@@ -44,6 +54,19 @@ function SettingsForm({ settings }: { settings: Settings }) {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       toast.success("Settings updated");
     },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bioMutation = useMutation({
+    mutationFn: () => api.aiGenerateBio<{ bio: string }>({ tone: "professional" }),
+    onSuccess: (res) => setAiBio(res.data.bio),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const seoMutation = useMutation({
+    mutationFn: () =>
+      api.aiSeoOptimizer<{ title: string; description: string; keywords: string[] }>(),
+    onSuccess: (res) => setSeoSuggestions(res.data),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -92,12 +115,33 @@ function SettingsForm({ settings }: { settings: Settings }) {
           required
         />
       </FormField>
-      <FormField label="Bio">
+      <FormField
+        label="Bio"
+        action={
+          <AiAssistButton
+            onClick={() => bioMutation.mutate()}
+            isLoading={bioMutation.isPending}
+            label="Generate bio"
+          />
+        }
+      >
         <Textarea
           value={form.bio}
           onChange={(e) => setForm({ ...form, bio: e.target.value })}
         />
       </FormField>
+      {aiBio && (
+        <AiResultPanel
+          content={aiBio}
+          onAccept={() => {
+            setForm({ ...form, bio: aiBio });
+            setAiBio(null);
+          }}
+          onRegenerate={() => bioMutation.mutate()}
+          onDiscard={() => setAiBio(null)}
+          isRegenerating={bioMutation.isPending}
+        />
+      )}
       <FormField label="Profile photo">
         <div className="space-y-3">
           {form.photoUrl && (
@@ -147,6 +191,41 @@ function SettingsForm({ settings }: { settings: Settings }) {
       <Button type="submit" disabled={updateMutation.isPending}>
         Save settings
       </Button>
+
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">SEO Optimizer</CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => seoMutation.mutate()}
+            disabled={seoMutation.isPending}
+          >
+            <Sparkles className="mr-1.5 size-3.5" />
+            Optimize SEO
+          </Button>
+        </CardHeader>
+        {seoSuggestions && (
+          <CardContent className="space-y-3 text-sm">
+            <div>
+              <p className="font-medium">Suggested title</p>
+              <p className="text-muted-foreground">{seoSuggestions.title}</p>
+            </div>
+            <div>
+              <p className="font-medium">Meta description</p>
+              <p className="text-muted-foreground">{seoSuggestions.description}</p>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {seoSuggestions.keywords.map((kw) => (
+                <Badge key={kw} variant="secondary">
+                  {kw}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        )}
+      </Card>
     </form>
   );
 }

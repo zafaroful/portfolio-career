@@ -42,6 +42,50 @@ export const api = {
     request<T>("/upload", { method: "POST", body: formData }),
   uploadResume: <T>(formData: FormData) =>
     request<T>("/resumes/upload", { method: "POST", body: formData }),
-  generateResume: <T>(body: { versionName: string; templateId: string }) =>
-    request<T>("/resumes/generate", { method: "POST", body: JSON.stringify(body) }),
+  generateResume: <T>(body: {
+    versionName: string;
+    templateId: string;
+    jobDescription?: string;
+    tailoringHints?: {
+      highlightedProjectIds?: string[];
+      highlightedSkillIds?: string[];
+      rewrittenProjectBullets?: { projectId: string; bullets: string[] }[];
+      summaryLine?: string;
+    };
+  }) => request<T>("/resumes/generate", { method: "POST", body: JSON.stringify(body) }),
+  aiProjectDescription: <T>(body: {
+    title: string;
+    role?: string;
+    techStack?: string[];
+    roughNotes: string;
+    tone?: "professional" | "technical" | "leadership";
+  }) => request<T>("/ai/projects/description", { method: "POST", body: JSON.stringify(body) }),
+  aiTailorResume: <T>(body: {
+    jobDescription: string;
+    targetRole?: string;
+    templateId?: string;
+  }) => request<T>("/ai/resumes/tailor", { method: "POST", body: JSON.stringify(body) }),
+  aiSkillsGap: <T>(body: { jobPosting: string; targetRole?: string }) =>
+    request<T>("/ai/skills/gap-analysis", { method: "POST", body: JSON.stringify(body) }),
+  aiPortfolioCoach: <T>() =>
+    request<T>("/ai/portfolio/coach", { method: "POST", body: JSON.stringify({}) }),
+  aiSmartSearch: <T>(body: { query: string }) =>
+    request<T>("/ai/search", { method: "POST", body: JSON.stringify(body) }),
+  aiAchievementStory: <T>(body: {
+    title: string;
+    roughNotes: string;
+    category?: string;
+  }) => request<T>("/ai/achievements/story", { method: "POST", body: JSON.stringify(body) }),
+  aiGenerateBio: <T>(body?: {
+    tone?: "professional" | "technical" | "leadership";
+    maxLength?: number;
+  }) => request<T>("/ai/settings/bio", { method: "POST", body: JSON.stringify(body ?? {}) }),
+  aiSeoOptimizer: <T>() =>
+    request<T>("/ai/portfolio/seo", { method: "POST", body: JSON.stringify({}) }),
+  aiCertRelevance: <T>() =>
+    request<T>("/ai/certifications/score", { method: "POST", body: JSON.stringify({}) }),
+  aiInterviewQuestions: <T>(body: {
+    entityType: "project" | "skill" | "certification" | "achievement";
+    entityId: string;
+  }) => request<T>("/ai/interview/questions", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -36,7 +36,8 @@ import {
 } from "@/lib/utils";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Download, FileText, Upload, Eye, Sparkles, Trash2 } from "lucide-react";
+import { Download, FileText, Upload, Eye, Sparkles, Trash2, Target } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { TemplatePreview, type ResumeTemplateId } from "@/components/resume/template-preview";
 
 type Resume = {
@@ -70,6 +71,15 @@ export default function ResumesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const [generateVersionName, setGenerateVersionName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplateId>("modern");
+  const [jobDescription, setJobDescription] = useState("");
+  const [targetRole, setTargetRole] = useState("");
+  const [tailorPlan, setTailorPlan] = useState<{
+    highlightedProjectIds: string[];
+    highlightedSkillIds: string[];
+    rewrittenProjectBullets: { projectId: string; bullets: string[] }[];
+    summaryLine: string;
+    suggestedVersionName: string;
+  } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["resumes"],
@@ -112,12 +122,31 @@ export default function ResumesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const tailorMutation = useMutation({
+    mutationFn: () =>
+      api.aiTailorResume<NonNullable<typeof tailorPlan>>({
+        jobDescription,
+        targetRole: targetRole || undefined,
+        templateId: selectedTemplate,
+      }),
+    onSuccess: (res) => {
+      setTailorPlan(res.data);
+      if (!generateVersionName.trim()) {
+        setGenerateVersionName(res.data.suggestedVersionName);
+      }
+      toast.success("Tailoring preview ready");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const generateMutation = useMutation({
     mutationFn: () => {
       const versionName = generateVersionName.trim() || "Generated Resume";
       return api.generateResume<Resume>({
         versionName,
         templateId: selectedTemplate,
+        jobDescription: jobDescription || undefined,
+        tailoringHints: tailorPlan ?? undefined,
       });
     },
     onSuccess: () => {
@@ -125,6 +154,7 @@ export default function ResumesPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Resume generated");
       setGenerateVersionName("");
+      setTailorPlan(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -150,7 +180,7 @@ export default function ResumesPage() {
         description="Generate PDF resumes from your portfolio or upload existing files."
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card className="shadow-elevation-sm">
           <CardHeader>
             <CardTitle className="text-base">Generate resume</CardTitle>
@@ -225,6 +255,57 @@ export default function ResumesPage() {
           </Button>
         </CardContent>
       </Card>
+
+        <Card className="shadow-elevation-sm lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-base">Tailor for job</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField label="Job description">
+              <Textarea
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                placeholder="Paste the job posting here..."
+                rows={4}
+              />
+            </FormField>
+            <FormField label="Target role (optional)">
+              <Input
+                value={targetRole}
+                onChange={(e) => setTargetRole(e.target.value)}
+                placeholder="e.g. Full Stack Developer"
+              />
+            </FormField>
+            <FormField label="Template">
+              <TemplatePreview selected={selectedTemplate} onSelect={setSelectedTemplate} />
+            </FormField>
+            <Button
+              variant="outline"
+              onClick={() => tailorMutation.mutate()}
+              disabled={tailorMutation.isPending || jobDescription.trim().length < 10}
+            >
+              <Target className="mr-2 size-4" />
+              {tailorMutation.isPending ? "Analyzing..." : "Preview tailoring"}
+            </Button>
+            {tailorPlan && (
+              <div className="space-y-2 rounded-md border p-3 text-sm">
+                <p className="font-medium">Summary</p>
+                <p className="text-muted-foreground">{tailorPlan.summaryLine}</p>
+                <p className="font-medium">
+                  Highlighting {tailorPlan.highlightedProjectIds.length} projects,{" "}
+                  {tailorPlan.highlightedSkillIds.length} skills
+                </p>
+                <Button
+                  onClick={() => generateMutation.mutate()}
+                  disabled={generateMutation.isPending}
+                >
+                  <Sparkles className="mr-2 size-4" />
+                  Generate tailored PDF
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="shadow-elevation-sm">

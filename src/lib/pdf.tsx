@@ -17,6 +17,55 @@ type ResumeData = {
   projects: Project[];
 };
 
+export type ResumeRenderOptions = {
+  highlightedProjectIds?: string[];
+  highlightedSkillIds?: string[];
+  rewrittenProjectBullets?: { projectId: string; bullets: string[] }[];
+  summaryLine?: string;
+};
+
+export function applyResumeRenderOptions(
+  data: ResumeData,
+  options?: ResumeRenderOptions,
+): ResumeData {
+  if (!options) return data;
+
+  let skills = data.skills;
+  if (options.highlightedSkillIds?.length) {
+    const highlighted = new Set(options.highlightedSkillIds);
+    skills = [
+      ...data.skills.filter((s) => highlighted.has(s.id)),
+      ...data.skills.filter((s) => !highlighted.has(s.id)),
+    ];
+  }
+
+  let projects = data.projects;
+  if (options.highlightedProjectIds?.length) {
+    const highlighted = new Set(options.highlightedProjectIds);
+    projects = [
+      ...data.projects.filter((p) => highlighted.has(p.id)),
+      ...data.projects.filter((p) => !highlighted.has(p.id)),
+    ];
+  }
+
+  const bulletMap = new Map(
+    (options.rewrittenProjectBullets ?? []).map((entry) => [
+      entry.projectId,
+      entry.bullets.map((b) => `• ${b}`).join("\n"),
+    ]),
+  );
+  projects = projects.map((project) => ({
+    ...project,
+    description: bulletMap.get(project.id) ?? project.description,
+  }));
+
+  const user = options.summaryLine
+    ? { ...data.user, bio: options.summaryLine }
+    : data.user;
+
+  return { ...data, user, skills, projects };
+}
+
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica", fontSize: 10 },
   header: { marginBottom: 20 },
@@ -213,13 +262,15 @@ export type ResumeTemplateId = "modern" | "classic" | "minimal";
 export async function generateResumePdf(
   data: ResumeData,
   templateId: ResumeTemplateId,
+  options?: ResumeRenderOptions,
 ): Promise<Buffer> {
+  const renderData = applyResumeRenderOptions(data, options);
   const component =
     templateId === "classic"
-      ? React.createElement(ClassicResume, { data })
+      ? React.createElement(ClassicResume, { data: renderData })
       : templateId === "minimal"
-        ? React.createElement(MinimalResume, { data })
-        : React.createElement(ModernResume, { data });
+        ? React.createElement(MinimalResume, { data: renderData })
+        : React.createElement(ModernResume, { data: renderData });
 
   // @ts-expect-error react-pdf Document typing mismatch with createElement
   const blob = await pdf(component).toBlob();

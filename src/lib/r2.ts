@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { put } from "@vercel/blob";
 import { writeFile, mkdir, readFile } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -19,6 +20,14 @@ export function isR2Configured() {
     process.env.R2_BUCKET_NAME &&
     process.env.R2_ENDPOINT
   );
+}
+
+export function isBlobConfigured() {
+  return !!process.env.BLOB_READ_WRITE_TOKEN;
+}
+
+export function isFileStorageConfigured() {
+  return isR2Configured() || isBlobConfigured();
 }
 
 function getS3Client() {
@@ -130,9 +139,18 @@ export async function uploadFile(
     return { fileUrl: publicUrl, fileKey: key };
   }
 
+  if (isBlobConfigured()) {
+    const blob = await put(key, buffer, {
+      access: "public",
+      contentType: mimeType,
+      addRandomSuffix: false,
+    });
+    return { fileUrl: blob.url, fileKey: key };
+  }
+
   if (process.env.VERCEL) {
     throw new Error(
-      "File storage is not configured. Add Cloudflare R2 environment variables on Vercel.",
+      "File storage is not configured. Connect Vercel Blob or add Cloudflare R2 environment variables.",
     );
   }
 
@@ -144,7 +162,13 @@ export async function uploadFile(
   return { fileUrl, fileKey: key };
 }
 
-export async function getSignedFileUrl(fileKey: string): Promise<string> {
+export async function getSignedFileUrl(
+  fileKey: string,
+  fileUrl?: string,
+): Promise<string> {
+  if (fileUrl?.includes("blob.vercel-storage.com")) {
+    return fileUrl;
+  }
   if (isR2Configured()) {
     const client = getS3Client();
     return getSignedUrl(

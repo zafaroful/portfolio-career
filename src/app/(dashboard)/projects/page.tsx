@@ -35,6 +35,9 @@ import { formatDate } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
 import { FolderKanban, Plus, ExternalLink, X, ImageIcon } from "lucide-react";
+import { AiAssistButton } from "@/components/ai/ai-assist-button";
+import { AiResultPanel } from "@/components/ai/ai-result-panel";
+import { InterviewQuestionsDialog } from "@/components/ai/interview-questions-dialog";
 
 type Project = {
   id: string;
@@ -97,6 +100,9 @@ export default function ProjectsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Project | null>(null);
+  const [roughNotes, setRoughNotes] = useState("");
+  const [aiDescription, setAiDescription] = useState<string | null>(null);
+  const [interviewTarget, setInterviewTarget] = useState<Project | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -286,6 +292,22 @@ export default function ProjectsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const aiDescriptionMutation = useMutation({
+    mutationFn: () =>
+      api.aiProjectDescription<{ description: string }>({
+        title: form.title,
+        role: form.role || undefined,
+        techStack: form.techStack
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        roughNotes: roughNotes || form.description,
+        tone: "professional",
+      }),
+    onSuccess: (res) => setAiDescription(res.data.description),
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <PageContainer>
       <PageHeader
@@ -322,12 +344,44 @@ export default function ProjectsPage() {
                     required
                   />
                 </FormField>
-                <FormField label="Description">
+                <FormField
+                  label="Rough notes"
+                  description="Optional — bullet points or messy notes for AI to polish."
+                >
+                  <Textarea
+                    value={roughNotes}
+                    onChange={(e) => setRoughNotes(e.target.value)}
+                    placeholder="Built a dashboard, used React, improved load times..."
+                  />
+                </FormField>
+                <FormField
+                  label="Description"
+                  action={
+                    <AiAssistButton
+                      onClick={() => aiDescriptionMutation.mutate()}
+                      isLoading={aiDescriptionMutation.isPending}
+                      disabled={!form.title.trim() || (!roughNotes.trim() && !form.description.trim())}
+                      label="Write with AI"
+                    />
+                  }
+                >
                   <Textarea
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
                 </FormField>
+                {aiDescription && (
+                  <AiResultPanel
+                    content={aiDescription}
+                    onAccept={() => {
+                      setForm({ ...form, description: aiDescription });
+                      setAiDescription(null);
+                    }}
+                    onRegenerate={() => aiDescriptionMutation.mutate()}
+                    onDiscard={() => setAiDescription(null)}
+                    isRegenerating={aiDescriptionMutation.isPending}
+                  />
+                )}
                 <FormField label="Tech stack" description="Comma-separated values.">
                   <Input
                     value={form.techStack}
@@ -579,11 +633,20 @@ export default function ProjectsPage() {
                     </Badge>
                   )}
                 </div>
-                <TableActions
-                  onEdit={() => openEdit(project)}
-                  onDelete={() => deleteMutation.mutate(project.id)}
-                  isDeleting={deleteMutation.isPending}
-                />
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setInterviewTarget(project)}
+                  >
+                    Interview prep
+                  </Button>
+                  <TableActions
+                    onEdit={() => openEdit(project)}
+                    onDelete={() => deleteMutation.mutate(project.id)}
+                    isDeleting={deleteMutation.isPending}
+                  />
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {project.description && <p className="text-sm">{project.description}</p>}
@@ -629,6 +692,14 @@ export default function ProjectsPage() {
           ))}
         </div>
       )}
+
+      <InterviewQuestionsDialog
+        open={!!interviewTarget}
+        onOpenChange={(open) => !open && setInterviewTarget(null)}
+        entityType="project"
+        entityId={interviewTarget?.id ?? ""}
+        entityName={interviewTarget?.title ?? ""}
+      />
     </PageContainer>
   );
 }

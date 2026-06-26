@@ -8,7 +8,8 @@ Personal Portfolio & Career Management System — a Next.js full-stack app to ma
 - **Backend:** Next.js API routes (`/api/v1/*`)
 - **Database:** PostgreSQL + Prisma (local Docker, Supabase, or `prisma dev`)
 - **Auth:** Auth.js (NextAuth v5) with credentials + JWT
-- **Files:** Cloudflare R2 (S3-compatible) with local `uploads/` fallback
+- **Files:** Cloudflare R2 / Vercel Blob with local `uploads/` fallback
+- **AI:** OpenAI via Vercel AI SDK (`/api/v1/ai/*`)
 - **PDF:** `@react-pdf/renderer`
 
 ## Quick start (local)
@@ -270,8 +271,10 @@ Apply to **Production** (and **Preview** if you want preview deploys to work wit
 
 Optional (see sections below):
 
-- `R2_*` — Cloudflare R2 file storage
-- `UPSTASH_*` — rate limiting
+- `R2_*` — Cloudflare R2 file storage (or use Vercel Blob via `BLOB_READ_WRITE_TOKEN`)
+- `OPENAI_API_KEY` — enables AI features (resume tailoring, project writer, coach, etc.)
+- `AI_MODEL` — optional OpenAI model override (default: `gpt-4o`)
+- `UPSTASH_*` — rate limiting (including AI rate limits)
 - `SENTRY_DSN` — error monitoring
 
 ---
@@ -317,6 +320,27 @@ npm run db:deploy
 1. Create a PostgreSQL service on Railway.
 2. Copy `DATABASE_URL` and set as `DIRECT_URL` as well (or use pooled + direct URLs per Prisma docs).
 3. Add variables to Vercel and follow Steps 3–8 above.
+
+---
+
+### AI features (OpenAI)
+
+Set `OPENAI_API_KEY` in `.env` (local) or Vercel (production). Optional: `AI_MODEL` to override the default OpenAI model (e.g. `gpt-4o`, `gpt-4.1-mini`).
+
+| Feature | Route | UI location |
+|---------|-------|-------------|
+| Project description writer | `POST /api/v1/ai/projects/description` | Projects → add/edit dialog |
+| Resume tailoring | `POST /api/v1/ai/resumes/tailor` | Resumes → Tailor for job |
+| Skills gap analyzer | `POST /api/v1/ai/skills/gap-analysis` | Dashboard |
+| Portfolio coach | `POST /api/v1/ai/portfolio/coach` | Dashboard |
+| Smart search | `POST /api/v1/ai/search` | Dashboard search (natural language) |
+| Achievement storyteller | `POST /api/v1/ai/achievements/story` | Achievements dialog |
+| Bio generator | `POST /api/v1/ai/settings/bio` | Settings |
+| SEO optimizer | `POST /api/v1/ai/portfolio/seo` | Settings |
+| Cert relevance scorer | `POST /api/v1/ai/certifications/score` | Certifications |
+| Interview prep | `POST /api/v1/ai/interview/questions` | Projects, skills, certs, achievements |
+
+AI routes require admin auth. With Upstash configured, AI calls are rate-limited to 20 requests per user per hour.
 
 ---
 

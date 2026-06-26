@@ -26,6 +26,9 @@ import { formatDate } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Award, Plus } from "lucide-react";
+import { AiAssistButton } from "@/components/ai/ai-assist-button";
+import { AiResultPanel } from "@/components/ai/ai-result-panel";
+import { InterviewQuestionsDialog } from "@/components/ai/interview-questions-dialog";
 
 type Achievement = {
   id: string;
@@ -45,6 +48,9 @@ export default function AchievementsPage() {
     date: "",
     category: "",
   });
+  const [roughNotes, setRoughNotes] = useState("");
+  const [aiStory, setAiStory] = useState<string | null>(null);
+  const [interviewTarget, setInterviewTarget] = useState<Achievement | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["achievements"],
@@ -82,6 +88,17 @@ export default function AchievementsPage() {
       queryClient.invalidateQueries({ queryKey: ["achievements"] });
       toast.success("Achievement deleted");
     },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const aiStoryMutation = useMutation({
+    mutationFn: () =>
+      api.aiAchievementStory<{ description: string }>({
+        title: form.title,
+        roughNotes: roughNotes || form.description,
+        category: form.category || undefined,
+      }),
+    onSuccess: (res) => setAiStory(res.data.description),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -166,12 +183,41 @@ export default function AchievementsPage() {
                     required
                   />
                 </FormField>
-                <FormField label="Description">
+                <FormField label="Rough notes" description="Optional notes for AI to expand into a STAR story.">
+                  <Textarea
+                    value={roughNotes}
+                    onChange={(e) => setRoughNotes(e.target.value)}
+                    placeholder="Won hackathon, built app in 48 hours..."
+                  />
+                </FormField>
+                <FormField
+                  label="Description"
+                  action={
+                    <AiAssistButton
+                      onClick={() => aiStoryMutation.mutate()}
+                      isLoading={aiStoryMutation.isPending}
+                      disabled={!form.title.trim() || (!roughNotes.trim() && !form.description.trim())}
+                      label="STAR story"
+                    />
+                  }
+                >
                   <Textarea
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                   />
                 </FormField>
+                {aiStory && (
+                  <AiResultPanel
+                    content={aiStory}
+                    onAccept={() => {
+                      setForm({ ...form, description: aiStory });
+                      setAiStory(null);
+                    }}
+                    onRegenerate={() => aiStoryMutation.mutate()}
+                    onDiscard={() => setAiStory(null)}
+                    isRegenerating={aiStoryMutation.isPending}
+                  />
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <FormField label="Date">
                     <Input
@@ -222,11 +268,16 @@ export default function AchievementsPage() {
               {achievements.map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium">{a.title}</span>
-                  <TableActions
-                    onEdit={() => openEdit(a)}
-                    onDelete={() => deleteMutation.mutate(a.id)}
-                    isDeleting={deleteMutation.isPending}
-                  />
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setInterviewTarget(a)}>
+                      Interview prep
+                    </Button>
+                    <TableActions
+                      onEdit={() => openEdit(a)}
+                      onDelete={() => deleteMutation.mutate(a.id)}
+                      isDeleting={deleteMutation.isPending}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -253,6 +304,14 @@ export default function AchievementsPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      <InterviewQuestionsDialog
+        open={!!interviewTarget}
+        onOpenChange={(open) => !open && setInterviewTarget(null)}
+        entityType="achievement"
+        entityId={interviewTarget?.id ?? ""}
+        entityName={interviewTarget?.title ?? ""}
+      />
     </PageContainer>
   );
 }

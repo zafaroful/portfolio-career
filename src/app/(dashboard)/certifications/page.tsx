@@ -31,7 +31,8 @@ import { getExpiryStatus } from "@/components/features/certifications/expiry-sta
 import { formatDate } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
-import { BadgeCheck, Plus } from "lucide-react";
+import { BadgeCheck, Plus, Sparkles } from "lucide-react";
+import { InterviewQuestionsDialog } from "@/components/ai/interview-questions-dialog";
 
 type Certification = {
   id: string;
@@ -55,6 +56,10 @@ export default function CertificationsPage() {
     credentialId: "",
     fileUrl: "",
   });
+  const [interviewTarget, setInterviewTarget] = useState<Certification | null>(null);
+  const [relevanceScores, setRelevanceScores] = useState<
+    Record<string, { score: number; relevance: string; feedback: string }>
+  >({});
 
   const { data, isLoading } = useQuery({
     queryKey: ["certifications"],
@@ -91,6 +96,27 @@ export default function CertificationsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["certifications"] });
       toast.success("Certification deleted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const relevanceMutation = useMutation({
+    mutationFn: () =>
+      api.aiCertRelevance<{
+        scores: Array<{
+          certificationId: string;
+          score: number;
+          relevance: string;
+          feedback: string;
+        }>;
+      }>(),
+    onSuccess: (res) => {
+      const map: Record<string, { score: number; relevance: string; feedback: string }> = {};
+      for (const item of res.data.scores) {
+        map[item.certificationId] = item;
+      }
+      setRelevanceScores(map);
+      toast.success("Relevance scores updated");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -163,7 +189,16 @@ export default function CertificationsPage() {
         title="Certifications"
         description="Track credentials and expiry dates."
         actions={
-          <Dialog
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => relevanceMutation.mutate()}
+              disabled={relevanceMutation.isPending || certs.length === 0}
+            >
+              <Sparkles className="mr-2 size-4" />
+              Score relevance
+            </Button>
+            <Dialog
             open={open}
             onOpenChange={(v) => {
               setOpen(v);
@@ -235,6 +270,7 @@ export default function CertificationsPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
 
@@ -260,6 +296,7 @@ export default function CertificationsPage() {
               <TableHead>Issue date</TableHead>
               <TableHead>Expiry</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Relevance</TableHead>
               <TableHead>File</TableHead>
               <TableHead className="w-24">Actions</TableHead>
             </TableRow>
@@ -291,11 +328,25 @@ export default function CertificationsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <TableActions
-                      onEdit={() => openEdit(cert)}
-                      onDelete={() => deleteMutation.mutate(cert.id)}
-                      isDeleting={deleteMutation.isPending}
-                    />
+                    {relevanceScores[cert.id] ? (
+                      <Badge variant="outline" title={relevanceScores[cert.id].feedback}>
+                        {relevanceScores[cert.id].score}% · {relevanceScores[cert.id].relevance}
+                      </Badge>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setInterviewTarget(cert)}>
+                        Prep
+                      </Button>
+                      <TableActions
+                        onEdit={() => openEdit(cert)}
+                        onDelete={() => deleteMutation.mutate(cert.id)}
+                        isDeleting={deleteMutation.isPending}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -303,6 +354,14 @@ export default function CertificationsPage() {
           </TableBody>
         </Table>
       </DataTable>
+
+      <InterviewQuestionsDialog
+        open={!!interviewTarget}
+        onOpenChange={(open) => !open && setInterviewTarget(null)}
+        entityType="certification"
+        entityId={interviewTarget?.id ?? ""}
+        entityName={interviewTarget?.title ?? ""}
+      />
     </PageContainer>
   );
 }

@@ -79,11 +79,13 @@ npm run db:deploy
 npm run db:seed
 ```
 
-Default admin credentials (from `.env`):
+Default admin credentials (from `.env` / `.env.example`):
 
-- Email: `zafaroful98@gmail.com`
-- Password: `Zarul@Iwan1998`
+- Email: `admin@example.com`
+- Password: `changeme123`
 - Portfolio slug: `admin`
+
+Change these in `.env` before running `npm run db:seed` if you want different credentials.
 
 ### 5. Start dev server
 
@@ -141,41 +143,193 @@ All authenticated endpoints require an admin session.
 
 ## Deployment
 
-### Vercel (app)
+Step-by-step guide to deploy on **Vercel** with **Supabase** as the production database.
 
-1. Connect the GitHub repo to Vercel.
-2. Set environment variables from `.env.example`.
-3. Build command: `npm run build` (runs `prisma generate` via `postinstall`).
-4. Run `npm run db:deploy` against production DB before first deploy (or use Railway migration step).
+### Deployment checklist
 
-### Supabase (database)
+```
+[ ] Supabase project created
+[ ] DATABASE_URL + DIRECT_URL copied from Supabase
+[ ] npm run db:deploy + db:seed run against production DB
+[ ] GitHub repo connected to Vercel
+[ ] Environment variables set in Vercel
+[ ] Deploy succeeded
+[ ] Login works at /login
+[ ] Public portfolio loads at /portfolio/[slug]
+```
 
-1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
-2. In **Project Settings → Database → Connect**, copy:
-   - **Transaction pooler** (port `6543`) → `DATABASE_URL` (add `?pgbouncer=true`)
-   - **Session pooler** or **Direct connection** (port `5432`) → `DIRECT_URL`
-3. Add both variables to Vercel (or your host) alongside the other env vars from `.env.example`.
-4. Before the first deploy, run migrations against Supabase:
+---
+
+### Step 1 — Create a Supabase project
+
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard).
+2. Click **New project**.
+3. Choose a name, database password, and region.
+4. Wait until the project finishes provisioning.
+
+---
+
+### Step 2 — Copy database connection strings
+
+1. In Supabase, open **Project Settings → Database → Connect**.
+2. Copy two URLs:
+
+| Vercel variable | Supabase connection | Notes |
+|-----------------|---------------------|-------|
+| `DATABASE_URL` | **Transaction pooler** (port `6543`) | Append `?pgbouncer=true` if not present |
+| `DIRECT_URL` | **Session pooler** or **Direct connection** (port `5432`) | Used by Prisma migrations |
+
+Example:
+
+```env
+DATABASE_URL="postgresql://postgres.abcdefgh:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://postgres.abcdefgh:YOUR_PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+```
+
+Replace `[YOUR-PASSWORD]` with your database password.
+
+---
+
+### Step 3 — Run migrations on the production database
+
+Before the first deploy, apply the schema and seed the admin user **from your local machine**, pointing at Supabase.
+
+1. Temporarily set production URLs in `.env` (or a separate file you load for this step):
+
+```bash
+cd "C:\Personal Projects\portfolio-career"
+```
+
+2. Run migrations and seed:
 
 ```bash
 npm run db:deploy
 npm run db:seed
 ```
 
+This creates all tables and the admin user using `ADMIN_*` values from `.env`. Update those before seeding if you want custom login credentials.
+
+---
+
+### Step 4 — Generate an auth secret
+
+Auth.js requires a random `AUTH_SECRET`.
+
+**macOS / Linux / Git Bash:**
+
+```bash
+openssl rand -base64 32
+```
+
+**Windows PowerShell:**
+
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+Save the output — you will paste it into Vercel in the next step.
+
+---
+
+### Step 5 — Connect GitHub to Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign in.
+2. Click **Add New → Project**.
+3. Import your GitHub repository (`portfolio-career`).
+4. Framework should auto-detect as **Next.js**.
+
+Build settings (defaults are fine):
+
+| Setting | Value |
+|---------|-------|
+| Build command | `npm run build` |
+| Install command | `npm install` |
+| Output | Next.js default |
+
+Your `vercel.json` already matches these settings.
+
+---
+
+### Step 6 — Add environment variables in Vercel
+
+Before clicking **Deploy**, open **Environment Variables** and add:
+
+| Variable | Required | Example / notes |
+|----------|----------|-----------------|
+| `DATABASE_URL` | Yes | Supabase transaction pooler URL |
+| `DIRECT_URL` | Yes | Supabase session/direct URL |
+| `AUTH_SECRET` | Yes | Output from Step 4 |
+| `AUTH_URL` | Yes | `https://your-app.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | Yes | Same as `AUTH_URL` |
+| `ADMIN_EMAIL` | Seed only | Admin login email |
+| `ADMIN_PASSWORD` | Seed only | Admin login password |
+| `ADMIN_NAME` | Optional | Display name |
+| `ADMIN_PORTFOLIO_SLUG` | Optional | Public slug, e.g. `admin` |
+
+Apply to **Production** (and **Preview** if you want preview deploys to work with a DB).
+
+Optional (see sections below):
+
+- `R2_*` — Cloudflare R2 file storage
+- `UPSTASH_*` — rate limiting
+- `SENTRY_DSN` — error monitoring
+
+---
+
+### Step 7 — Deploy
+
+1. Click **Deploy** in Vercel.
+2. Wait for the build to finish (typically 1–3 minutes).
+3. Open the deployment URL.
+
+GitHub Actions also runs on every push to `master`:
+
+- **CI** — lint, typecheck, unit tests, E2E
+- **Deploy** — validates production build
+
+Check the **Actions** tab on GitHub if a push fails.
+
+---
+
+### Step 8 — Verify the deployment
+
+1. Open `https://your-app.vercel.app/login` and sign in with your admin credentials.
+2. Confirm the dashboard loads at `/dashboard`.
+3. Visit your public portfolio at `/portfolio/admin` (or your `ADMIN_PORTFOLIO_SLUG`).
+4. Check SEO routes: `/robots.txt` and `/sitemap.xml`.
+
+---
+
+### Supabase (database reference)
+
 Supabase includes automated daily backups on paid plans; free tier projects can use manual backups via the dashboard or `pg_dump`.
+
+If you need to re-run migrations after schema changes:
+
+```bash
+npm run db:deploy
+```
+
+---
 
 ### Railway (PostgreSQL, alternative)
 
 1. Create a PostgreSQL service on Railway.
-2. Copy `DATABASE_URL` and set as `DIRECT_URL` as well (or use pooled URL + direct URL per Prisma docs).
-3. Add variables to Vercel.
+2. Copy `DATABASE_URL` and set as `DIRECT_URL` as well (or use pooled + direct URLs per Prisma docs).
+3. Add variables to Vercel and follow Steps 3–8 above.
+
+---
 
 ### Cloudflare R2 (files)
 
 1. Create an R2 bucket.
-2. Create API token with read/write access.
+2. Create an API token with read/write access.
 3. Set `R2_*` env vars in Vercel.
 4. Optionally set `R2_PUBLIC_URL` for public asset URLs.
+
+Without R2, uploads fall back to local storage (not suitable for serverless production — configure R2 for Vercel).
+
+---
 
 ### Staging
 
@@ -200,6 +354,31 @@ Supabase includes automated daily backups on paid plans; free tier projects can 
 - For VPS/self-hosted: schedule `pg_dump` daily and store off-site.
 
 ## Troubleshooting
+
+### `/api/auth/error` — server configuration problem
+
+Auth.js shows this when **`AUTH_SECRET` is missing** on Vercel.
+
+1. Generate a secret (see Step 4 in Deployment).
+2. Add `AUTH_SECRET`, `AUTH_URL`, and `NEXT_PUBLIC_APP_URL` in Vercel → **Settings → Environment Variables**.
+3. Redeploy (uncheck build cache).
+
+### Deploy build fails: `DATABASE_URL must be set`
+
+The app can build without a database (lazy Prisma init), but you **must** set `DATABASE_URL` and `DIRECT_URL` in Vercel for the app to work at runtime. GitHub Actions deploy workflow includes a Postgres service automatically — Vercel does not.
+
+1. Add `DATABASE_URL` and `DIRECT_URL` in Vercel → **Settings → Environment Variables**.
+2. Redeploy.
+
+### Login fails after deploy
+
+1. Confirm you ran `npm run db:seed` against the **production** database (Step 3).
+2. Check credentials match the `ADMIN_EMAIL` / `ADMIN_PASSWORD` used during seed.
+3. Verify `AUTH_SECRET`, `AUTH_URL`, and `NEXT_PUBLIC_APP_URL` are set and `AUTH_URL` matches your Vercel domain (including `https://`).
+
+### Auth redirect loops
+
+`AUTH_URL` and `NEXT_PUBLIC_APP_URL` must exactly match your live URL, e.g. `https://portfolio-career.vercel.app`.
 
 ### Docker: `500 Internal Server Error` on `docker compose up`
 

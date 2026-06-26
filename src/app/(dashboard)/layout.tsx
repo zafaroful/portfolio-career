@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { hasValidSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 
@@ -10,7 +11,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session) {
+  if (!hasValidSession(session)) {
     redirect("/login");
   }
 

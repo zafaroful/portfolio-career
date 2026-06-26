@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, User } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { hasValidSession } from "@/lib/session";
 import { dashboardNavItems } from "@/lib/nav-config";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,17 +28,18 @@ type DashboardSummary = {
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { status } = useSession();
+  const { data: session } = useSession();
+  const isLoggedIn = hasValidSession(session);
   const { data: settingsData } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<UserSettings>("/settings"),
-    enabled: status === "authenticated",
+    enabled: isLoggedIn,
   });
 
   const { data: dashboardData } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => api.get<DashboardSummary>("/dashboard"),
-    enabled: status === "authenticated",
+    enabled: isLoggedIn,
   });
 
   const user = settingsData?.data;
@@ -112,7 +114,7 @@ export function AppSidebar() {
         </>
       )}
       <div className="shrink-0 border-t border-sidebar-border p-3 pb-4">
-        {status === "authenticated" ? (
+        {isLoggedIn ? (
           <Button
             type="button"
             variant="ghost"

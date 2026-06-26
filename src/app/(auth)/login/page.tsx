@@ -37,7 +37,11 @@ function LoginForm() {
     setIsLoading(false);
 
     if (result?.error) {
-      toast.error("Invalid email or password");
+      if (result.code === "database_unavailable") {
+        toast.error("Database is not configured on the server. Add DATABASE_URL on Vercel.");
+      } else {
+        toast.error("Invalid email or password");
+      }
       return;
     }
 

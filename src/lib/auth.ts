@@ -1,10 +1,14 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { authConfig } from "./auth.config";
 import { prisma } from "./prisma";
 
 const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+class DatabaseUnavailableError extends CredentialsSignin {
+  code = "database_unavailable";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -21,18 +25,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return null;
+        if (!process.env.DATABASE_URL) {
+          throw new DatabaseUnavailableError();
+        }
 
-        const valid = await compare(password, user.passwordHash);
-        if (!valid) return null;
+        try {
+          const user = await prisma.user.findUnique({ where: { email } });
+          if (!user) return null;
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
+          const valid = await compare(password, user.passwordHash);
+          if (!valid) return null;
+
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          };
+        } catch {
+          throw new DatabaseUnavailableError();
+        }
       },
     }),
   ],

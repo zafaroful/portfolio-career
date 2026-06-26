@@ -18,6 +18,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:setup:production": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-production-db.ps1",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

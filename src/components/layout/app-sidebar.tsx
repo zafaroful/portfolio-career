@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LogOut, User } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { dashboardNavItems } from "@/lib/nav-config";
 import { Button } from "@/components/ui/button";
@@ -26,28 +26,40 @@ type DashboardSummary = {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { status } = useSession();
   const { data: settingsData } = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<UserSettings>("/settings"),
+    enabled: status === "authenticated",
   });
 
   const { data: dashboardData } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => api.get<DashboardSummary>("/dashboard"),
+    enabled: status === "authenticated",
   });
 
   const user = settingsData?.data;
   const certAlertCount = dashboardData?.data?.certAlertCount ?? 0;
 
+  async function handleSignOut() {
+    try {
+      await signOut({ callbackUrl: "/login", redirect: true });
+    } catch {
+      router.push("/login");
+    }
+  }
+
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
-      <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
+    <aside className="relative z-10 flex h-full w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-4">
         <Link href="/dashboard" className="font-semibold tracking-tight">
           Portfolio Career
         </Link>
         <ThemeToggle />
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {dashboardNavItems.map((item) => {
           const Icon = item.icon;
           const active =
@@ -76,10 +88,10 @@ export function AppSidebar() {
           );
         })}
       </nav>
-      <Separator className="bg-sidebar-border" />
       {user && (
         <>
-          <div className="flex items-center gap-3 p-3">
+          <Separator className="shrink-0 bg-sidebar-border" />
+          <div className="flex shrink-0 items-center gap-3 p-3">
             <Avatar>
               {user.photoUrl ? (
                 <AvatarImage src={user.photoUrl} alt={user.name} />
@@ -97,18 +109,28 @@ export function AppSidebar() {
               </p>
             </div>
           </div>
-          <Separator className="bg-sidebar-border" />
         </>
       )}
-      <div className="p-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={() => signOut({ callbackUrl: "/login" })}
-        >
-          <LogOut className="size-4" />
-          Sign out
-        </Button>
+      <div className="shrink-0 border-t border-sidebar-border p-3 pb-4">
+        {status === "authenticated" ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full justify-start gap-2 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={() => void handleSignOut()}
+          >
+            <LogOut className="size-4" />
+            Sign out
+          </Button>
+        ) : (
+          <Link
+            href="/login"
+            className="inline-flex h-9 w-full items-center justify-start gap-2 rounded-md px-2.5 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <LogOut className="size-4" />
+            Sign in
+          </Link>
+        )}
       </div>
     </aside>
   );

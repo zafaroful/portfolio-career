@@ -15,15 +15,25 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-if (
-  !globalForPrisma.prisma ||
-  globalForPrisma.prismaVersion !== PRISMA_CLIENT_VERSION
-) {
-  if (globalForPrisma.prisma) {
-    void globalForPrisma.prisma.$disconnect();
+function getPrismaClient(): PrismaClient {
+  if (
+    !globalForPrisma.prisma ||
+    globalForPrisma.prismaVersion !== PRISMA_CLIENT_VERSION
+  ) {
+    if (globalForPrisma.prisma) {
+      void globalForPrisma.prisma.$disconnect();
+    }
+    globalForPrisma.prisma = createPrismaClient();
+    globalForPrisma.prismaVersion = PRISMA_CLIENT_VERSION;
   }
-  globalForPrisma.prisma = createPrismaClient();
-  globalForPrisma.prismaVersion = PRISMA_CLIENT_VERSION;
+  return globalForPrisma.prisma;
 }
 
-export const prisma = globalForPrisma.prisma;
+/** Lazy client so importing modules during `next build` does not require DATABASE_URL. */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    const client = getPrismaClient();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

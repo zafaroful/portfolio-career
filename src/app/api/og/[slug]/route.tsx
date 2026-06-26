@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 import { getPortfolioData } from "@/lib/services/portfolio";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ slug: string }> },
